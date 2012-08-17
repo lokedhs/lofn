@@ -7,7 +7,8 @@
            #:hunchentoot-stream-as-text
            #:with-hunchentoot-stream
            #:show-template-stream
-           #:define-json-handler-fn))
+           #:define-json-handler-fn
+           #:exec-template-file))
 
 (in-package #:lofn)
 
