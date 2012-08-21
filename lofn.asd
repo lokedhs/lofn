@@ -12,4 +12,5 @@
   :components ((:file "package")
                (:file "util")
                (:file "parser")
+               (:file "template")
                (:file "server")))

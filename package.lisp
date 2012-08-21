@@ -8,7 +8,10 @@
            #:with-hunchentoot-stream
            #:show-template-stream
            #:define-json-handler-fn
-           #:exec-template-file))
+           #:exec-template-file
+           #:*files-base-dir*
+           #:*template-files-base-dir*
+           #:*simple-files-base-dir*))
 
 (in-package #:lofn)
 

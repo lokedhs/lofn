@@ -351,8 +351,10 @@ or NIL if the information is not available."))
 
 ) ; end of SHORT-DEFINE-PARSER
 
+(defpackage :lofn-parse)
+
 (defun inner-parse-stream-to-form (stream)
-  (let ((*package* (find-package :template-parse))
+  (let ((*package* (find-package :lofn-parse))
         (*current-line-num* 0))
     (handler-case
         (let ((form (yacc:parse-with-lexer (make-stream-template-lexer stream) *template-parser*)))
