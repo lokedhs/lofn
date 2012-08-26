@@ -87,7 +87,7 @@ written to."
      ,@body))
 
 (defun show-template (out file data)
-  (exec-template-file (merge-pathnames file *template-files-base-dir*)
+  (exec-template-file (merge-pathnames file (make-template-files-base-dir))
                       data out
                       :binary t
                       :encoding :utf-8))
