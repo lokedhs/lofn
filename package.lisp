@@ -9,6 +9,7 @@
            #:show-template-stream
            #:define-json-handler-fn
            #:exec-template-file
+           #:with-parameters
            #:*files-base-dir*
            #:*template-files-base-dir*
            #:*simple-files-base-dir*))

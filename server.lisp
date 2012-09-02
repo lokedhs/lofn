@@ -111,6 +111,18 @@ written to."
        ,@(when docstring (list docstring))
        (process-json #'(lambda (,data-symbol) ,@declarations ,@rem-forms)))))
 
+(defmacro with-parameters (params &body body)
+  `(let ,(mapcar #'(lambda (v)
+                     (let ((var (if (symbolp v) v (car v))))
+                       (unless (and (not (null var)) (symbolp var))
+                         (error "Parameter specification ~s is not valid" v))
+                       (let ((param (if (and (listp v) (cadr v))
+                                        (cadr v)
+                                        (string-downcase (symbol-name var)))))
+                         `(,var (hunchentoot:parameter ,param)))))
+                 params)
+     ,@body))
+
 (defvar *global-acceptor* nil
   "The acceptor for the currently running server.")
 
