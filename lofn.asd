@@ -1,8 +1,8 @@
 (asdf:defsystem #:lofn
-  :serial t
   :description "Web framework for Hunchentoot"
   :author "Elias Martenson <lokedhs@gmail.com>"
   :license "BSD"
+  :serial t
   :depends-on (:hunchentoot
                :alexandria
                :st-json
