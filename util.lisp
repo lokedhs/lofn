@@ -1,6 +1,5 @@
 ;;;
 ;;; The content of this file is shamelessly taken from HTML-TEMPLATE.
-;;; That project is also BSD licensed, so it should be OK?
 ;;;
 
 (in-package :lofn)
