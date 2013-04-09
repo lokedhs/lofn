@@ -26,27 +26,19 @@
                      :documentation "List of fallback dispatchers"))
   (:documentation "Main hunchentoot acceptor"))
 
-#+nil(defmethod initialize-instance :after ((acceptor server-acceptor) &key &allow-other-keys)
-  (setf (slot-value acceptor 'files-dispatcher)
-        (mapcar #'(lambda (path)
-                    (hunchentoot:create-folder-dispatcher-and-handler
-                     (format nil "/~a/" path)
-                     (merge-pathnames (format nil "files/~a/" path) *files-base-dir*)))
-                '("css" "js" "images"))))
-
-(defun make-server (port file-dirs)
-  (let ((dispatcher-list (mapcar #'(lambda (p)
-                                     (let ((base (if (stringp p) p (car p))))
-                                       (hunchentoot:create-folder-dispatcher-and-handler
-                                        (if (and (listp p) (cadr p))
-                                            (cadr p)
-                                            (format nil "/~a/" base))
-                                        (merge-pathnames (format nil "~a/" base)
-                                                         (make-simple-files-base-dir)))))
-                                 file-dirs)))
-    (make-instance 'server-acceptor
-                   :port port
-                   :dispatcher-list dispatcher-list)))
+(defun make-server (port file-dirs dispatcher-list)
+  (make-instance 'server-acceptor
+                 :port port
+                 :dispatcher-list (append dispatcher-list
+                                          (mapcar #'(lambda (p)
+                                                      (let ((base (if (stringp p) p (car p))))
+                                                        (hunchentoot:create-folder-dispatcher-and-handler
+                                                         (if (and (listp p) (cadr p))
+                                                             (cadr p)
+                                                             (format nil "/~a/" base))
+                                                         (merge-pathnames (format nil "~a/" base)
+                                                                          (make-simple-files-base-dir)))))
+                                                  file-dirs))))
 
 (defmethod hunchentoot:acceptor-dispatch-request ((acceptor server-acceptor) request)
   (let ((handler (gethash (hunchentoot:script-name request) *url-handlers*)))
@@ -126,12 +118,12 @@ written to."
 (defvar *global-acceptor* nil
   "The acceptor for the currently running server.")
 
-(defun start-server (&key (port 8080) dispatcher-list)
+(defun start-server (&key (port 8080) dirs dispatcher-list)
   "Start lofn server with a HTTP listener on port PORT."
   (when *global-acceptor*
     (error "Server is already running"))
 
-  (let ((a (make-server port dispatcher-list)))
+  (let ((a (make-server port dirs dispatcher-list)))
     (hunchentoot:start a)
     (setq *global-acceptor* a))
 
