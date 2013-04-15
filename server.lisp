@@ -26,8 +26,9 @@
                      :documentation "List of fallback dispatchers"))
   (:documentation "Main hunchentoot acceptor"))
 
-(defun make-server (port file-dirs dispatcher-list)
+(defun make-server (address port file-dirs dispatcher-list)
   (make-instance 'server-acceptor
+                 :address address
                  :port port
                  :dispatcher-list (append dispatcher-list
                                           (mapcar #'(lambda (p)
@@ -118,12 +119,12 @@ written to."
 (defvar *global-acceptor* nil
   "The acceptor for the currently running server.")
 
-(defun start-server (&key (port 8080) dirs dispatcher-list)
+(defun start-server (&key (address nil) (port 8080) dirs dispatcher-list)
   "Start lofn server with a HTTP listener on port PORT."
   (when *global-acceptor*
     (error "Server is already running"))
 
-  (let ((a (make-server port dirs dispatcher-list)))
+  (let ((a (make-server address port dirs dispatcher-list)))
     (hunchentoot:start a)
     (setq *global-acceptor* a))
 
