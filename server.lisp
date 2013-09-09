@@ -18,6 +18,10 @@
 (defvar *url-handlers* (make-hash-table :test 'equal)
   "A hash table keyed on the base URL that maps to the underlying handler function")
 
+(defvar *regex-handlers* nil
+  "A list of regex handlers. Each element is a list of the
+form \(NAME REGEX)")
+
 (defclass server-acceptor (hunchentoot:acceptor)
   ((files-dispatcher :type list
                      :initarg :dispatcher-list
@@ -26,43 +30,64 @@
                      :documentation "List of fallback dispatchers"))
   (:documentation "Main hunchentoot acceptor"))
 
+(defun append-slash (dir)
+  (if (char/= (aref dir (1- (length dir))) #\/)
+      (concatenate 'string dir "/")
+      dir))
+
 (defun make-server (address port file-dirs dispatcher-list)
-  (make-instance 'server-acceptor
-                 :address address
-                 :port port
-                 :dispatcher-list (append dispatcher-list
-                                          (mapcar #'(lambda (p)
-                                                      (let ((base (if (stringp p) p (car p))))
-                                                        (hunchentoot:create-folder-dispatcher-and-handler
-                                                         (if (and (listp p) (cadr p))
-                                                             (cadr p)
-                                                             (format nil "/~a/" base))
-                                                         (merge-pathnames (format nil "~a/" base)
-                                                                          (make-simple-files-base-dir)))))
-                                                  file-dirs))))
+  (let ((dis (append dispatcher-list
+                     (mapcar #'(lambda (p)
+                                 (let ((base (if (stringp p) p (car p))))
+                                   (hunchentoot:create-folder-dispatcher-and-handler
+                                    (if (and (listp p) (cadr p))
+                                        (cadr p)
+                                        (format nil "/~a/" base))
+                                    (merge-pathnames (append-slash base)
+                                                     (make-simple-files-base-dir)))))
+                             file-dirs))))
+    (make-instance 'server-acceptor
+                   :address address
+                   :port port
+                   :dispatcher-list dis)))
 
 (defmethod hunchentoot:acceptor-dispatch-request ((acceptor server-acceptor) request)
-  (let ((handler (gethash (hunchentoot:script-name request) *url-handlers*)))
+  (let* ((script-name (hunchentoot:script-name request))
+         (handler (gethash script-name *url-handlers*)))
     (if handler
         (funcall handler)
-        (loop
-           for dispatcher in (files-dispatcher acceptor)
-           for dis = (funcall dispatcher request)
-           when dis
-           return (funcall dis)
-           finally (call-next-method)))))
+        (progn
+          (loop
+             for (name regex) in *regex-handlers*
+             do (multiple-value-bind (match strings)
+                    (cl-ppcre:scan-to-strings regex script-name)
+                  (when match
+                    (return (apply name (coerce strings 'list))))))
+          (loop
+             for dispatcher in (files-dispatcher acceptor)
+             for dis = (funcall dispatcher request)
+             when dis
+             return (funcall dis)
+             finally (call-next-method))))))
 
-(defun %make-define-handler-fn-form (docstring name body)
-  `(defun ,name ()
+(defun %make-define-handler-fn-form (docstring name bind-vars body)
+  `(defun ,name ,bind-vars
      ,@(when docstring (list docstring))
      ,@body))
 
-(defmacro define-handler-fn ((name url) &body body)
+(defmacro define-handler-fn ((name url regex (&rest bind-vars)) &body body)
+  (check-type name symbol)
+  (check-type url string)
+  (check-type regex (or null (eql t)))
+  (check-type bind-vars list)
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (setf (gethash ,url *url-handlers*) ',name)
+     ,(if regex
+          `(setq *regex-handlers* (cons (list ',name (cl-ppcre:create-scanner ,url))
+                                        (remove ',name *regex-handlers* :key #'car)))
+          `(setf (gethash ,url *url-handlers*) ',name))
      ,(multiple-value-bind (rem-forms declarations docstring)
                            (alexandria:parse-body body :documentation t)
-                           (%make-define-handler-fn-form docstring name (append declarations rem-forms)))))
+                           (%make-define-handler-fn-form docstring name bind-vars (append declarations rem-forms)))))
 
 (defun hunchentoot-stream-as-text (&key (content-type "text/html") (append-charset t))
   "Sends the appropriate headers to ensure that all data is sent back using
@@ -96,13 +121,25 @@ written to."
     (with-hunchentoot-stream (out "application/json")
       (st-json:write-json result out))))
 
-(defmacro define-json-handler-fn ((name url data-symbol) &body body)
+(defun process-json-no-data (fn)
+  (check-type fn function)
+  (let ((result (funcall fn)))
+    (with-hunchentoot-stream (out "application/json")
+      (st-json:write-json result out))))
+
+(defmacro define-json-handler-fn ((name url data-symbol regex (&rest bind-vars)) &body body)
+  (check-type name symbol)
+  (check-type url string)
   (check-type data-symbol symbol)
+  (check-type regex (or null (eql t)))
+  (check-type bind-vars list)
   (multiple-value-bind (rem-forms declarations docstring)
       (alexandria:parse-body body :documentation t)
-    `(define-handler-fn (,name ,url)
+    `(define-handler-fn (,name ,url ,regex ,bind-vars)
        ,@(when docstring (list docstring))
-       (process-json #'(lambda (,data-symbol) ,@declarations ,@rem-forms)))))
+       ,(if data-symbol
+            `(process-json #'(lambda (,data-symbol) ,@declarations ,@rem-forms))
+            `(process-json-no-data #'(lambda () ,@declarations ,@rem-forms))))))
 
 (defmacro with-parameters (params &body body)
   `(let ,(mapcar #'(lambda (v)
