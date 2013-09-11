@@ -12,7 +12,8 @@
            #:with-parameters
            #:*files-base-dir*
            #:*template-files-base-dir*
-           #:*simple-files-base-dir*))
+           #:*simple-files-base-dir*
+           #:*template-cache-min-check*))
 
 (in-package #:lofn)
 
