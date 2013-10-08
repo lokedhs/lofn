@@ -67,7 +67,7 @@ form \(NAME REGEX)")
              for dispatcher in (files-dispatcher acceptor)
              for dis = (funcall dispatcher request)
              when dis
-             do (return-from find-handler (funcall dis))
+             do (return-from check-for-handlers (funcall dis))
              finally (call-next-method))))))
 
 (defun %make-define-handler-fn-form (docstring name bind-vars body)
