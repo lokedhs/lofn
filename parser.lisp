@@ -75,7 +75,7 @@ or NIL if the information is not available."))
 
 (defparameter *actions*
   (make-lexer-actions ("[ \\n]+" (constantly :blank))
-                      ("#\\|.*?\\|#" (constantly :blank))
+                      ("#\\|.*\\|#" (constantly :blank))
                       ("if"        'if)
                       ("else"      'else)
                       ("end"       'end)

@@ -56,13 +56,13 @@ form \(NAME REGEX)")
          (handler (gethash script-name *url-handlers*)))
     (if handler
         (funcall handler)
-        (block find-handler
+        (block check-for-handlers
           (loop
              for (name regex) in *regex-handlers*
              do (multiple-value-bind (match strings)
                     (cl-ppcre:scan-to-strings regex script-name)
                   (when match
-                    (return-from find-handler (apply name (coerce strings 'list))))))
+                    (return-from check-for-handlers (apply name (coerce strings 'list))))))
           (loop
              for dispatcher in (files-dispatcher acceptor)
              for dis = (funcall dispatcher request)
