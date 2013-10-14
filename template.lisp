@@ -50,9 +50,9 @@ output to STREAM."
                                          (setf (gethash pathname *cached-templates*)
                                                (make-instance 'parsed-file
                                                               :name pathname
-                                                              :template (parse-template-file pathname)
-                                                              :binary binary
-                                                              :encoding encoding
+                                                              :template (parse-template-file pathname
+                                                                                             :binary binary
+                                                                                             :encoding encoding)
                                                               :last-time-check (get-universal-time)))
                                          ;; The cached file is up to date                                         
                                          cached))
