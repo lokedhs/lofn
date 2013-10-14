@@ -8,7 +8,8 @@
                :st-json
                :parse-number
                :yacc
-               :string-case)
+               :string-case
+               :secure-random)
   :components ((:file "package")
                (:file "util")
                (:file "parser")

@@ -156,10 +156,17 @@ written to."
 (defvar *global-acceptor* nil
   "The acceptor for the currently running server.")
 
+(defun create-random-key ()
+  (with-output-to-string (s)
+    (dotimes (i (/ 128 4))
+      (format s "~vr" 16 (secure-random:number 16)))))
+
 (defun start-server (&key (address nil) (port 8080) dirs dispatcher-list)
   "Start lofn server with a HTTP listener on port PORT."
   (when *global-acceptor*
     (error "Server is already running"))
+
+  (setq hunchentoot:*session-secret* (create-random-key))
 
   (let ((a (make-server address port dirs dispatcher-list)))
     (hunchentoot:start a)
