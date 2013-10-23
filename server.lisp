@@ -81,13 +81,13 @@ form \(NAME REGEX)")
   (check-type regex (or null (eql t)))
   (check-type bind-vars list)
   `(eval-when (:compile-toplevel :load-toplevel :execute)
+     ,(multiple-value-bind (rem-forms declarations docstring)
+                           (alexandria:parse-body body :documentation t)
+                           (%make-define-handler-fn-form docstring name bind-vars (append declarations rem-forms)))
      ,(if regex
           `(setq *regex-handlers* (cons (list ',name (cl-ppcre:create-scanner ,url))
                                         (remove ',name *regex-handlers* :key #'car)))
-          `(setf (gethash ,url *url-handlers*) ',name))
-     ,(multiple-value-bind (rem-forms declarations docstring)
-                           (alexandria:parse-body body :documentation t)
-                           (%make-define-handler-fn-form docstring name bind-vars (append declarations rem-forms)))))
+          `(setf (gethash ,url *url-handlers*) ',name))))
 
 (defun hunchentoot-stream-as-text (&key (content-type "text/html") (append-charset t))
   "Sends the appropriate headers to ensure that all data is sent back using
