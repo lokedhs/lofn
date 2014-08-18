@@ -13,7 +13,8 @@
            #:*files-base-dir*
            #:*template-files-base-dir*
            #:*simple-files-base-dir*
-           #:*template-cache-min-check*))
+           #:*template-cache-min-check*
+           #:*global-acceptor*))
 
 (in-package #:lofn)
 
