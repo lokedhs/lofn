@@ -85,7 +85,7 @@ form \(NAME REGEX)")
                            (alexandria:parse-body body :documentation t)
                            (%make-define-handler-fn-form docstring name bind-vars (append declarations rem-forms)))
      ,(if regex
-          `(setq *regex-handlers* (cons (list ',name (cl-ppcre:create-scanner ,url))
+          `(setq *regex-handlers* (cons (list ',name (cl-ppcre:create-scanner (concatenate 'string "^" ,url "$")))
                                         (remove ',name *regex-handlers* :key #'car)))
           `(setf (gethash ,url *url-handlers*) ',name))))
 
