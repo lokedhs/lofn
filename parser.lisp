@@ -376,10 +376,10 @@ or NIL if the information is not available."))
     (inner-parse-stream-to-form stream)))
 
 (defun parse-template (stream &key binary (encoding :utf-8) include-root-dir)
-  "Parses and compiles the template defition given as STREAM. If BINARY
-is NIL, the generated template will output its data as strings \(using
-PRINC), otherwise the output will be converted to binary using the
-encoding specified by ENCODING. The binary output is the preferred
+  "Parses and compiles the template definition given as STREAM. If
+BINARY is NIL, the generated template will output its data as strings
+\(using PRINC), otherwise the output will be converted to binary using
+the encoding specified by ENCODING. The binary output is the preferred
 method as that will allow constant strings in the template to be
 encoded during parsing instead of at runtime.
 
