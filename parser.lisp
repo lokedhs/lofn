@@ -373,7 +373,7 @@ or NIL if the information is not available."))
         (*include-root-dir* (or include-root-dir *default-pathname-defaults*)))
     (inner-parse-stream-to-form stream)))
 
-(defun parse-template (stream &key binary (encoding :utf-8) include-root-dir declare-args)
+(defun parse-template (stream &key binary (encoding :utf-8) include-root-dir)
   "Parses and compiles the template definition given as STREAM. If
 BINARY is NIL, the generated template will output its data as strings
 \(using PRINC), otherwise the output will be converted to binary using
@@ -392,7 +392,6 @@ output stream to which the result should be written."
          (stream-sym (gensym "STREAM-"))
          (data-sym (gensym "DATA-"))
          (code-form `(lambda (,data-sym ,stream-sym)
-                       ,@(when declare-args (list declare-args))
                        (let* ((current-content ,data-sym)
                               (*current-stream* ,(if binary
                                                      `(flexi-streams:make-flexi-stream ,stream-sym :external-format ,encoding)
