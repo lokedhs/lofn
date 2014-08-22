@@ -222,8 +222,6 @@ or NIL if the information is not available."))
 (defun string->symbol (symbol-name &optional (package *package*))
   (intern (string-upcase (string symbol-name)) package))
 
-(defvar *current-content* nil)
-
 (defmacro short-define-parser (name initials &body definitions)
   (labels ((process-row (row)
              (let* ((arguments (car row))
@@ -289,7 +287,7 @@ or NIL if the information is not available."))
                    (gensym))))
       `(loop
           for ,sym in ,data
-          do (let ((*current-content* ,sym)) ,@document-nodes))))
+          do (let ((current-content ,sym)) ,@document-nodes))))
 
    (((print modifier) data)
     (string-case:string-case (modifier)
@@ -307,7 +305,7 @@ or NIL if the information is not available."))
     (let ((function-code (gethash symbol *subtemplate-list*)))
       (unless function-code
         (signal-template-error (format nil "Attempting to call subtemplate \"~a\" which has not been defined." symbol)))
-      `(,(car function-code))))
+      `(,(car function-code) current-content)))
 
    ((include string)
     (let ((filename (merge-pathnames (pathname string) *include-root-dir*)))
@@ -328,8 +326,8 @@ or NIL if the information is not available."))
    nil)
 
   (data
-   ((symbol)     `(cdr (assoc ,(string->symbol symbol "KEYWORD") *current-content*)))
-   ((|.|)        '*current-content*)
+   ((symbol)     `(cdr (assoc ,(string->symbol symbol "KEYWORD") current-content)))
+   ((|.|)        'current-content)
    ((|,| symbol) (string->symbol symbol))
    ((string)     string)
    (((|/| v1) interned-symbol (|/| v3) expression)
@@ -360,7 +358,7 @@ or NIL if the information is not available."))
         (let ((form (yacc:parse-with-lexer (make-stream-template-lexer stream) *template-parser*)))
           `(labels ,(loop
                        for value being each hash-value in *subtemplate-list*
-                       collect `(,(car value) () ,@(cdr value)))
+                       collect `(,(car value) (current-content) ,@(cdr value)))
              ,form))
       (yacc:yacc-parse-error (condition) (signal-template-error
                                           (format nil "Parse error: terminal=~s value=~s expected=~s"
@@ -394,7 +392,7 @@ output stream to which the result should be written."
          (stream-sym (gensym "STREAM-"))
          (data-sym (gensym "DATA-"))
          (code-form `(lambda (,data-sym ,stream-sym)
-                       (let* ((*current-content* ,data-sym)
+                       (let* ((current-content ,data-sym)
                               (*current-stream* ,(if binary
                                                      `(flexi-streams:make-flexi-stream ,stream-sym :external-format ,encoding)
                                                      stream-sym))
