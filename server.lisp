@@ -64,7 +64,7 @@ form \(NAME REGEX)")
                  :address address
                  :port port
                  :dispatcher-list (make-dispatcher-list file-dirs dispatcher-list)
-                 :certificate-file certificate-file
+                 :ssl-certificate-file certificate-file
                  :ssl-privatekey-file ssl-privatekey-file
                  :ssl-privatekey-password ssl-privatekey-password))
 
@@ -178,14 +178,17 @@ written to."
     (dotimes (i (/ 128 4))
       (format s "~vr" 16 (secure-random:number 16)))))
 
-(defun start-server (&key (address nil) (port 8080) dirs dispatcher-list)
+(defun start-server (&key (address nil) (port 8080) dirs dispatcher-list
+                       ssl-cert-file ssl-key-file ssl-key-password)
   "Start lofn server with a HTTP listener on port PORT."
   (when *global-acceptor*
     (error "Server is already running"))
 
   (setq hunchentoot:*session-secret* (create-random-key))
 
-  (let ((a (make-server address port dirs dispatcher-list)))
+  (let ((a (if (and ssl-cert-file ssl-key-file)
+               (make-server-ssl address port dirs dispatcher-list ssl-cert-file ssl-key-file ssl-key-password)
+               (make-server address port dirs dispatcher-list))))
     (hunchentoot:start a)
     (setq *global-acceptor* a))
 
