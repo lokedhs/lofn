@@ -22,7 +22,7 @@
   "A list of regex handlers. Each element is a list of the
 form \(NAME REGEX)")
 
-(defclass server-acceptor (hunchentoot:acceptor)
+(defclass server-acceptor-mixin ()
   ((files-dispatcher :type list
                      :initarg :dispatcher-list
                      :reader files-dispatcher
@@ -30,28 +30,45 @@ form \(NAME REGEX)")
                      :documentation "List of fallback dispatchers"))
   (:documentation "Main hunchentoot acceptor"))
 
+(defclass server-acceptor (server-acceptor-mixin hunchentoot:acceptor)
+  ())
+
+(defclass server-acceptor-ssl (server-acceptor-mixin hunchentoot:ssl-acceptor)
+  ())
+
 (defun append-slash (dir)
   (if (char/= (aref dir (1- (length dir))) #\/)
       (concatenate 'string dir "/")
       dir))
 
-(defun make-server (address port file-dirs dispatcher-list)
-  (let ((dis (append dispatcher-list
-                     (mapcar #'(lambda (p)
-                                 (let ((base (if (stringp p) p (car p))))
-                                   (hunchentoot:create-folder-dispatcher-and-handler
-                                    (if (and (listp p) (cadr p))
-                                        (cadr p)
-                                        (format nil "/~a/" base))
-                                    (merge-pathnames (append-slash base)
-                                                     (make-simple-files-base-dir)))))
-                             file-dirs))))
-    (make-instance 'server-acceptor
-                   :address address
-                   :port port
-                   :dispatcher-list dis)))
+(defun make-dispatcher-list (file-dirs dispatcher-list)
+  (append dispatcher-list
+          (mapcar #'(lambda (p)
+                      (let ((base (if (stringp p) p (car p))))
+                        (hunchentoot:create-folder-dispatcher-and-handler
+                         (if (and (listp p) (cadr p))
+                             (cadr p)
+                             (format nil "/~a/" base))
+                         (merge-pathnames (append-slash base)
+                                          (make-simple-files-base-dir)))))
+                  file-dirs)))
 
-(defmethod hunchentoot:acceptor-dispatch-request ((acceptor server-acceptor) request)
+(defun make-server (address port file-dirs dispatcher-list)
+  (make-instance 'server-acceptor
+                 :address address
+                 :port port
+                 :dispatcher-list (make-dispatcher-list file-dirs dispatcher-list)))
+
+(defun make-server-ssl (address port file-dirs dispatcher-list certificate-file ssl-privatekey-file &optional ssl-privatekey-password)
+  (make-instance 'server-acceptor-ssl
+                 :address address
+                 :port port
+                 :dispatcher-list (make-dispatcher-list file-dirs dispatcher-list)
+                 :certificate-file certificate-file
+                 :ssl-privatekey-file ssl-privatekey-file
+                 :ssl-privatekey-password ssl-privatekey-password))
+
+(defmethod hunchentoot:acceptor-dispatch-request ((acceptor server-acceptor-mixin) request)
   (let* ((script-name (hunchentoot:script-name request))
          (handler (gethash script-name *url-handlers*)))
     (if handler

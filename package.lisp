@@ -2,7 +2,7 @@
   (:use #:cl)
   (:export #:start-server
            #:parse-template
-           #:server-acceptor
+           #:server-acceptor-mixin
            #:define-handler-fn
            #:hunchentoot-stream-as-text
            #:with-hunchentoot-stream
@@ -14,7 +14,8 @@
            #:*template-files-base-dir*
            #:*simple-files-base-dir*
            #:*template-cache-min-check*
-           #:*global-acceptor*))
+           #:*global-acceptor*
+           #:make-server-ssl))
 
 (in-package #:lofn)
 
