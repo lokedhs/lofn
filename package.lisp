@@ -14,7 +14,8 @@
            #:*template-files-base-dir*
            #:*simple-files-base-dir*
            #:*template-cache-min-check*
-           #:make-server-ssl))
+           #:make-server-ssl
+           #:server-acceptor))
 
 (in-package #:lofn)
 

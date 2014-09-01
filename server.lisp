@@ -56,13 +56,13 @@ form \(NAME REGEX)")
                                           (make-simple-files-base-dir)))))
                   file-dirs)))
 
-(defun make-server (address port file-dirs dispatcher-list)
+(defun make-server (address port file-dirs dispatcher-list acceptor-name)
   (make-instance 'server-acceptor
                  :address address
                  :port port
                  :dispatcher-list (make-dispatcher-list file-dirs dispatcher-list)))
 
-(defun make-server-ssl (address port file-dirs dispatcher-list certificate-file ssl-privatekey-file &optional ssl-privatekey-password)
+(defun make-server-ssl (address port file-dirs dispatcher-list acceptor-name certificate-file ssl-privatekey-file &optional ssl-privatekey-password)
   (make-instance 'server-acceptor-ssl
                  :address address
                  :port port
@@ -179,14 +179,19 @@ written to."
       (format s "~vr" 16 (secure-random:number 16)))))
 
 (defun start-server (&key (address nil) (port 8080) dirs dispatcher-list
+                       (acceptor-name 'server-acceptor)
                        ssl-cert-file ssl-key-file ssl-key-password)
   "Start lofn server with a HTTP listener on port PORT."
+
+  (unless (subtypep acceptor-name 'server-acceptor)
+    (error "Acceptor must be a subtype of SERVER-ACCEPTOR"))
 
   (setq hunchentoot:*session-secret* (create-random-key))
 
   (let ((a (if (and ssl-cert-file ssl-key-file)
-               (make-server-ssl address port dirs dispatcher-list ssl-cert-file ssl-key-file ssl-key-password)
-               (make-server address port dirs dispatcher-list))))
+               (make-server-ssl address port dirs dispatcher-list acceptor-name
+                                ssl-cert-file ssl-key-file ssl-key-password)
+               (make-server address port dirs dispatcher-list acceptor-name))))
     (hunchentoot:start a)
 
     (setq hunchentoot:*show-lisp-errors-p* t)
