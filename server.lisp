@@ -57,19 +57,10 @@ form \(NAME REGEX)")
                   file-dirs)))
 
 (defun make-server (address port file-dirs dispatcher-list acceptor-name)
-  (make-instance 'server-acceptor
+  (make-instance acceptor-name
                  :address address
                  :port port
                  :dispatcher-list (make-dispatcher-list file-dirs dispatcher-list)))
-
-(defun make-server-ssl (address port file-dirs dispatcher-list acceptor-name certificate-file ssl-privatekey-file &optional ssl-privatekey-password)
-  (make-instance 'server-acceptor-ssl
-                 :address address
-                 :port port
-                 :dispatcher-list (make-dispatcher-list file-dirs dispatcher-list)
-                 :ssl-certificate-file certificate-file
-                 :ssl-privatekey-file ssl-privatekey-file
-                 :ssl-privatekey-password ssl-privatekey-password))
 
 (defmethod hunchentoot:acceptor-dispatch-request ((acceptor server-acceptor-mixin) request)
   (let* ((script-name (hunchentoot:script-name request))
@@ -179,8 +170,7 @@ written to."
       (format s "~vr" 16 (secure-random:number 16)))))
 
 (defun start-server (&key (address nil) (port 8080) dirs dispatcher-list
-                       (acceptor-name 'server-acceptor)
-                       ssl-cert-file ssl-key-file ssl-key-password)
+                       (acceptor-name 'server-acceptor))
   "Start lofn server with a HTTP listener on port PORT."
 
   (unless (subtypep acceptor-name 'server-acceptor)
@@ -188,12 +178,8 @@ written to."
 
   (setq hunchentoot:*session-secret* (create-random-key))
 
-  (let ((a (if (and ssl-cert-file ssl-key-file)
-               (make-server-ssl address port dirs dispatcher-list acceptor-name
-                                ssl-cert-file ssl-key-file ssl-key-password)
-               (make-server address port dirs dispatcher-list acceptor-name))))
+  (let ((a (make-server address port dirs dispatcher-list acceptor-name)))
     (hunchentoot:start a)
-
     (setq hunchentoot:*show-lisp-errors-p* t)
     (setq hunchentoot:*log-lisp-warnings-p* t)
     (setq hunchentoot:*log-lisp-backtraces-p* t)
