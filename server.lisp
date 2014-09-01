@@ -22,6 +22,9 @@
   "A list of regex handlers. Each element is a list of the
 form \(NAME REGEX)")
 
+(defvar *current-acceptors* nil
+  "A list of all active acceptors")
+
 (defclass server-acceptor-mixin ()
   ((files-dispatcher :type list
                      :initarg :dispatcher-list
@@ -170,9 +173,6 @@ written to."
                  params)
      ,@body))
 
-(defvar *global-acceptor* nil
-  "The acceptor for the currently running server.")
-
 (defun create-random-key ()
   (with-output-to-string (s)
     (dotimes (i (/ 128 4))
@@ -181,8 +181,6 @@ written to."
 (defun start-server (&key (address nil) (port 8080) dirs dispatcher-list
                        ssl-cert-file ssl-key-file ssl-key-password)
   "Start lofn server with a HTTP listener on port PORT."
-  (when *global-acceptor*
-    (error "Server is already running"))
 
   (setq hunchentoot:*session-secret* (create-random-key))
 
@@ -190,10 +188,10 @@ written to."
                (make-server-ssl address port dirs dispatcher-list ssl-cert-file ssl-key-file ssl-key-password)
                (make-server address port dirs dispatcher-list))))
     (hunchentoot:start a)
-    (setq *global-acceptor* a))
 
-  (setq hunchentoot:*show-lisp-errors-p* t)
-  (setq hunchentoot:*log-lisp-warnings-p* t)
-  (setq hunchentoot:*log-lisp-backtraces-p* t)
-  (setf (hunchentoot:acceptor-access-log-destination *global-acceptor*) (make-broadcast-stream))
-  (values))
+    (setq hunchentoot:*show-lisp-errors-p* t)
+    (setq hunchentoot:*log-lisp-warnings-p* t)
+    (setq hunchentoot:*log-lisp-backtraces-p* t)
+    (setf (hunchentoot:acceptor-access-log-destination a) (make-broadcast-stream))
+    (push a *current-acceptors*)
+    (values)))
