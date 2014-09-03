@@ -16,69 +16,6 @@ one thread per connection."))
 (defvar *inhibit-close-usocket* nil)
 (defparameter *out* *standard-output*)
 
-#+nil
-(defmethod hunchentoot:process-connection ((hunchentoot:*acceptor* polling-server-acceptor) (socket t))
-  (let* ((socket-stream (hunchentoot::make-socket-stream socket hunchentoot:*acceptor*))
-         (hunchentoot::*hunchentoot-stream* (hunchentoot:initialize-connection-stream hunchentoot:*acceptor* socket-stream))
-         (*inhibit-close-usocket* nil))
-    (unwind-protect
-         ;; process requests until either the acceptor is shut down,
-         ;; *CLOSE-HUNCHENTOOT-STREAM* has been set to T by the
-         ;; handler, or the peer fails to send a request
-         (loop
-            (let ((hunchentoot::*close-hunchentoot-stream* t))
-              (when (hunchentoot::acceptor-shutdown-p hunchentoot:*acceptor*)
-                (return))
-              (multiple-value-bind (headers-in method url-string protocol)
-                  (hunchentoot::get-request-data hunchentoot::*hunchentoot-stream*)
-                ;; check if there was a request at all
-                (unless method
-                  (return))
-                ;; bind per-request special variables, then process the
-                ;; request - note that *ACCEPTOR* was bound above already
-                (let ((hunchentoot:*reply* (make-instance (hunchentoot:acceptor-reply-class hunchentoot:*acceptor*)))
-                      (hunchentoot:*session* nil)
-                      (transfer-encodings (cdr (hunchentoot::assoc* :transfer-encoding headers-in))))
-                  (when transfer-encodings
-                    (setq transfer-encodings
-                          (hunchentoot::split "\\s*,\\s*" transfer-encodings))
-                    (when (member "chunked" transfer-encodings :test #'equalp)
-                      (cond ((hunchentoot::acceptor-input-chunking-p hunchentoot:*acceptor*)
-                             ;; turn chunking on before we read the request body
-                             (setf hunchentoot::*hunchentoot-stream* (hunchentoot::make-chunked-stream hunchentoot::*hunchentoot-stream*)
-                                   (hunchentoot::chunked-stream-input-chunking-p hunchentoot::*hunchentoot-stream*) t))
-                            (t (hunchentoot:hunchentoot-error "Client tried to use ~
-chunked encoding, but acceptor is configured to not use it.")))))
-                  (hunchentoot::with-acceptor-request-count-incremented (hunchentoot:*acceptor*)
-                                                                        (hunchentoot:process-request (hunchentoot::acceptor-make-request hunchentoot:*acceptor* socket
-                                                                                                                                         :headers-in headers-in
-                                                                                                                                         :content-stream hunchentoot::*hunchentoot-stream*
-                                                                                                                                         :method method
-                                                                                                                                         :uri url-string
-                                                                                                                                         :server-protocol protocol))))
-                (finish-output hunchentoot::*hunchentoot-stream*)
-                (setq hunchentoot::*hunchentoot-stream* (hunchentoot:reset-connection-stream hunchentoot:*acceptor* hunchentoot::*hunchentoot-stream*))
-                (when hunchentoot::*close-hunchentoot-stream*
-                  (return)))))
-      (unless (eql socket-stream hunchentoot::*hunchentoot-stream*)
-        ;; as we are at the end of the request here, we ignore all
-        ;; errors that may occur while flushing and/or closing the
-        ;; stream.
-        (hunchentoot::ignore-errors*
-         (finish-output hunchentoot::*hunchentoot-stream*))
-        (hunchentoot::ignore-errors*
-         (unless *inhibit-close-usocket*
-           (close hunchentoot::*hunchentoot-stream* :abort t))))
-      (when socket-stream
-        ;; as we are at the end of the request here, we ignore all
-        ;; errors that may occur while flushing and/or closing the
-        ;; stream.
-        (hunchentoot::ignore-errors*
-         (finish-output socket-stream))
-        (hunchentoot::ignore-errors*
-         (unless *inhibit-close-usocket*
-           (close socket-stream :abort t)))))))
-
 (defclass wrapper-stream (trivial-gray-streams:trivial-gray-stream-mixin
                           trivial-gray-streams:fundamental-binary-input-stream
                           trivial-gray-streams:fundamental-binary-output-stream)
