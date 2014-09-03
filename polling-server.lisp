@@ -59,7 +59,7 @@ one thread per connection."))
                         (close (usocket:socket-stream socket))
                       (error () (format t "Error closing socket: ~s~%" socket)))
                     (let ((pair (find socket *active-sockets* :key #'car)))
-                      (setq *active-sockets* (delete socket *active-sockets*))
+                      (setq *active-sockets* (delete socket *active-sockets* :key #'car))
                       (when (cdr pair)
                         (funcall (cdr pair))))))
                 ;; No active sockets, just sleep for a while
