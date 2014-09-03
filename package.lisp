@@ -17,7 +17,8 @@
            #:make-server-ssl
            #:server-acceptor
            #:start-poll-loop-thread
-           #:polling-server-acceptor))
+           #:polling-server-acceptor
+           #:start-polling))
 
 (in-package #:lofn)
 
