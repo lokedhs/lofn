@@ -16,91 +16,16 @@ one thread per connection."))
 (defvar *inhibit-close-usocket* nil)
 (defparameter *out* *standard-output*)
 
-(defclass wrapper-stream (trivial-gray-streams:trivial-gray-stream-mixin
-                          trivial-gray-streams:fundamental-binary-input-stream
-                          trivial-gray-streams:fundamental-binary-output-stream)
-  ((delegate :initarg :delegate
-             :initform (error "~s is a required argument for class ~s" :delegate 'wrapper-stream)
-             :reader wrapper-stream-delegate)
-   (context  :initarg :context
-             :initform (error "~s is a required argument for class ~s" :context 'wrapper-stream)
-             :reader wrapper-stream-context)
-   (description :type string
-                :initarg :description
-                :initform ""
-                :reader wrapper-stream-description)
-   (inhibit-close :type t
-                  :initform nil
-                  :accessor wrapper-stream-inhibit-close)))
-
-(defmethod trivial-gray-streams:stream-read-byte
-    ((stream wrapper-stream))
-  (read-byte (wrapper-stream-delegate stream)))
-
-(defmethod trivial-gray-streams:stream-write-byte
-    ((stream wrapper-stream) char)
-  (write-byte char (wrapper-stream-delegate stream)))
-
-(defmethod trivial-gray-streams:stream-read-sequence
-    ((stream wrapper-stream) seq start end &key)
-  (read-sequence seq (wrapper-stream-delegate stream)
-                 :start start :end end))
-
-(defmethod trivial-gray-streams:stream-write-sequence
-    ((stream wrapper-stream) seq start end &key)
-  (write-sequence seq (wrapper-stream-delegate stream)
-                  :start start :end end))
-
-(defmethod trivial-gray-streams:stream-finish-output
-    ((stream wrapper-stream))
-  (finish-output (wrapper-stream-delegate stream)))
-
-(defmethod trivial-gray-streams:stream-force-output
-    ((stream wrapper-stream))
-  (force-output (wrapper-stream-delegate stream)))
-
-(defmethod close ((stream wrapper-stream) &key abort)
-  (unless (wrapper-stream-inhibit-close stream)
-    (close (wrapper-stream-delegate stream) abort)))
-
-(defun make-wrapped-stream (stream)
-  (make-instance 'wrapper-stream :delegate stream :context nil))
-
-(defclass stream-usocket-wrapper (usocket:stream-usocket)
-  ((inhibit-close :type t
-                  :initform nil
-                  :accessor stream-usocket-wrapper-inhibit-close)))
-
-(defgeneric mark-socket-as-inhibit (socket value))
-(defmethod mark-socket-as-inhibit ((socket stream-usocket-wrapper) value)
-  (setf (stream-usocket-wrapper-inhibit-close socket) value)
-  (setf (wrapper-stream-inhibit-close (usocket:socket-stream socket)) value))
-
-(defun make-wrapped-socket (socket)
-  (check-type socket usocket:stream-usocket)
-  ;;(closer-common-lisp:change-class socket 'stream-usocket-wrapper)
-  (let* ((class (class-of socket))
-         (wrapper-class (find-class 'stream-usocket-wrapper))
-         (s (allocate-instance wrapper-class)))
-    (dolist (slot (closer-mop:class-slots class))
-      (setf (closer-mop:slot-value-using-class wrapper-class s slot)
-            (closer-mop:slot-value-using-class class socket slot)))
-    (initialize-instance s)
-    (setf (usocket:socket-stream s) (make-wrapped-stream (usocket:socket-stream s)))
-    s))
-
 (defmethod hunchentoot:process-connection ((acceptor polling-server-acceptor) socket)
-  (let ((wrapped-socket (make-wrapped-socket socket)))
-    (let ((result (block process                  
-                    (handler-bind ((request-polling #'(lambda (condition)
-                                                        (declare (ignore condition))
-                                                        (mark-socket-as-inhibit wrapped-socket t)
-                                                        (return-from process :polling))))
-                      (call-next-method acceptor (setq *socket* wrapped-socket))
-                      nil))))
-      (when (eq result :polling)
-        (mark-socket-as-inhibit wrapped-socket nil)
-        (register-polling-socket socket)))))
+  (let ((result (block process                  
+                  (handler-bind ((request-polling #'(lambda (condition)
+                                                      (declare (ignore condition))
+                                                      (setq hunchentoot:*close-hunchentoot-stream* nil)
+                                                      (return-from process :polling))))
+                    (call-next-method)
+                    nil))))
+    (when (eq result :polling)
+      (register-polling-socket socket))))
 
 (defvar *master-poll-waiting-sockets* (containers:make-blocking-queue))
 (defvar *active-sockets* nil)
