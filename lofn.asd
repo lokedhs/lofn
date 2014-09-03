@@ -10,7 +10,8 @@
                :yacc
                :string-case
                :secure-random
-               :containers)
+               :containers
+               :closer-mop)
   :components ((:file "package")
                (:file "util")
                (:file "parser")
