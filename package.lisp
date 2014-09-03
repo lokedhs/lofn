@@ -15,7 +15,9 @@
            #:*simple-files-base-dir*
            #:*template-cache-min-check*
            #:make-server-ssl
-           #:server-acceptor))
+           #:server-acceptor
+           #:start-poll-loop-thread
+           #:polling-server-acceptor))
 
 (in-package #:lofn)
 

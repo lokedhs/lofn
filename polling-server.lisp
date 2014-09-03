@@ -14,6 +14,7 @@ one thread per connection."))
 
 (defvar *socket* nil)
 (defvar *inhibit-close-usocket* nil)
+(defparameter *out* *standard-output*)
 
 #+nil
 (defmethod hunchentoot:process-connection ((hunchentoot:*acceptor* polling-server-acceptor) (socket t))
@@ -189,7 +190,7 @@ chunked encoding, but acceptor is configured to not use it.")))))
                                                        (return-from wait-for-disconnect))))
             (if *active-sockets*
                 (multiple-value-bind (sockets remaining)
-                    (usocket:wait-for-input *active-sockets*)
+                    (usocket:wait-for-input *active-sockets* :ready-only t)
                   (declare (ignore remaining))
                   (dolist (socket sockets)
                     (handler-case
