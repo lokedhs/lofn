@@ -12,8 +12,6 @@ processed using polling."))
   (:documentation "Acceptor that can optionally use polling instead of
 one thread per connection."))
 
-(defvar *socket* nil)
-(defvar *inhibit-close-usocket* nil)
 (defparameter *out* *standard-output*)
 
 (defmethod hunchentoot:process-connection ((acceptor polling-server-acceptor) socket)
