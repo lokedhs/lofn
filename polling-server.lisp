@@ -2,6 +2,8 @@
 
 (declaim #.*compile-decl*)
 
+(alexandria:define-constant +CRLF+ (format nil "~c~c" #\Return #\Newline) :test 'equal)
+
 (define-condition request-polling ()
   ((init-fn :type function
             :initarg :init-fn
@@ -104,26 +106,27 @@ one thread per connection."))
           :disconnect-callback disconnect-callback))
 
 (defun start-polling-with-sources (sources)
-  (let ((subscription (make-instance 'html5-notification:subscription
+  (let ((stream (flexi-streams:make-flexi-stream (hunchentoot:send-headers) :external-format :utf8))
+        (subscription (make-instance 'html5-notification:subscription
                                      :sources sources
                                      :http-event (hunchentoot:header-in* :last-event-id))))
     (with-slots (html5-notification::entries) subscription
-      (labels ((push-update (e socket)
+      (labels ((push-update (e)
                  (multiple-value-bind (prefixed new-id) (html5-notification:updated-objects-from-entry e)
                    (html5-notification::with-locked-instance (subscription)
                      (setf (html5-notification:subscription-entry-last-id e) new-id)
                      (when prefixed
-                       (containers:queue-push *push-queue*
-                                              #'(lambda ()
-                                                  (let ((stream (usocket:socket-stream (opened-socket/socket socket))))
-                                                    (write-sequence (babel:string-to-octets "polle~%" :encoding :utf-8)
-                                                                    stream)
+                       (let ((message (html5-notification:format-update-message-text subscription prefixed)))
+                         (containers:queue-push *push-queue*
+                                                #'(lambda ()
+                                                    (write-string message stream)
                                                     (finish-output stream))))))))
                
                (init (socket)
+                 (declare (ignore socket))
                  (dolist (e html5-notification::entries)
                    (let ((entry e))
-                     (html5-notification:add-listener entry #'(lambda () (push-update e socket))))))
+                     (html5-notification:add-listener entry #'(lambda () (push-update e))))))
 
                (remove-subscription (socket)
                  (declare (ignore socket))
