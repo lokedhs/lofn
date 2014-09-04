@@ -110,7 +110,7 @@ one thread per connection."))
     (with-slots (html5-notification::entries) subscription
       (labels ((push-update (e socket)
                  (multiple-value-bind (prefixed new-id) (html5-notification:updated-objects-from-entry e)
-                   (html5-notification:with-locked-instance (subscription)
+                   (html5-notification::with-locked-instance (subscription)
                      (setf (html5-notification:subscription-entry-last-id e) new-id)
                      (when prefixed
                        (containers:queue-push *push-queue*
