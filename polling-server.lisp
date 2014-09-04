@@ -76,7 +76,7 @@ one thread per connection."))
                       (error () (format t "Error closing socket: ~s~%" socket)))
                     (let ((pair (find socket *active-sockets* :key #'opened-socket/socket)))
                       (setq *active-sockets* (delete socket *active-sockets* :key #'opened-socket/socket))
-                      (alexandria:when-let ((callback(opened-socket/disconnect-callback pair)))
+                      (alexandria:when-let ((callback (opened-socket/disconnect-callback pair)))
                         (funcall callback socket)))))
                 ;; No active sockets, just sleep for a while
                 (sleep 10))))))
