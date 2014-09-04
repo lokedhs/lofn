@@ -11,7 +11,8 @@
                :string-case
                :secure-random
                :containers
-               :closer-mop)
+               :closer-mop
+               :html5-notification)
   :components ((:file "package")
                (:file "util")
                (:file "parser")

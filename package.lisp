@@ -18,7 +18,9 @@
            #:server-acceptor
            #:start-poll-loop-thread
            #:polling-server-acceptor
-           #:start-polling))
+           #:start-polling
+           #:remove-listener
+           #:start-polling-with-sources))
 
 (in-package #:lofn)
 
