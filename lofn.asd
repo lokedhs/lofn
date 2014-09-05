@@ -12,7 +12,8 @@
                :secure-random
                :containers
                :closer-mop
-               :html5-notification)
+               :html5-notification
+               :trivial-timers)
   :components ((:file "package")
                (:file "util")
                (:file "parser")

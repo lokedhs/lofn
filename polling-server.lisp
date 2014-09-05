@@ -5,14 +5,17 @@
 (alexandria:define-constant +CRLF+ (format nil "~c~c" #\Return #\Newline) :test 'equal)
 
 (define-condition request-polling ()
-  ((init-fn :type function
-            :initarg :init-fn
-            :initform nil
-            :reader request-polling/init-fn)
+  ((init-fn             :type function
+                        :initarg :init-fn
+                        :initform nil
+                        :reader request-polling/init-fn)
    (disconnect-callback :type function
                         :initarg :disconnect-callback
                         :initform nil
-                        :reader request-polling/disconnect-callback))
+                        :reader request-polling/disconnect-callback)
+   (stream              :type stream
+                        :initarg :stream
+                        :reader request-polling/stream))
   (:documentation "Condition that is raised when the request should be
 processed using polling."))
 
@@ -27,16 +30,19 @@ one thread per connection."))
   (let ((result (block process                  
                   (handler-bind ((request-polling #'(lambda (condition)
                                                       (setq hunchentoot:*close-hunchentoot-stream* nil)
-                                                      (return-from process (list (request-polling/init-fn condition)
+                                                      (return-from process (list (request-polling/stream condition)
+                                                                                 (request-polling/init-fn condition)
                                                                                  (request-polling/disconnect-callback condition))))))
                     (call-next-method)
                     nil))))
     (when result
-      (register-polling-socket socket (first result) (second result)))))
+      (destructuring-bind (stream init-fn disconnect-callback) result
+          (register-polling-socket socket stream init-fn disconnect-callback)))))
 
 (defvar *master-poll-waiting-sockets* (containers:make-blocking-queue))
 (defvar *active-sockets* nil)
 (defvar *poll-loop-thread* nil)
+(defvar *timer-block-thread* nil)
 
 (define-condition socket-updated-condition ()
   ())
@@ -46,12 +52,24 @@ one thread per connection."))
            :reader opened-socket/socket)
    (disconnect-callback :type function
                         :initarg :disconnect-callback
-                        :reader opened-socket/disconnect-callback)))
+                        :reader opened-socket/disconnect-callback)
+   (timer               :type trivial-timers:timer
+                        :reader opened-socket/timer)
+   (stream              :type stream
+                        :initarg :stream
+                        :reader opened-socket/stream)))
 
-(defun register-polling-socket (socket init-fn disconnect-callback)
+(defmethod initialize-instance :after ((obj opened-socket) &key &allow-other-keys)
+  (setf (slot-value obj 'timer) (trivial-timers:make-timer #'(lambda ()
+                                                               (push-ping-message obj))
+                                                           :name "Ping timer"
+                                                           :thread *timer-block-thread*)))
+
+(defun register-polling-socket (socket stream init-fn disconnect-callback)
   (let ((opened-socket (make-instance 'opened-socket
                                       :socket socket
-                                      :disconnect-callback disconnect-callback)))
+                                      :disconnect-callback disconnect-callback
+                                      :stream stream)))
     (when init-fn
       (funcall init-fn opened-socket))
     (containers:queue-push *master-poll-waiting-sockets* opened-socket)
@@ -79,7 +97,7 @@ one thread per connection."))
                     (let ((pair (find socket *active-sockets* :key #'opened-socket/socket)))
                       (setq *active-sockets* (delete socket *active-sockets* :key #'opened-socket/socket))
                       (alexandria:when-let ((callback (opened-socket/disconnect-callback pair)))
-                        (funcall callback socket)))))
+                        (funcall callback pair)))))
                 ;; No active sockets, just sleep for a while
                 (sleep 10))))))
 
@@ -94,18 +112,33 @@ one thread per connection."))
      for callback = (containers:queue-pop-wait *push-queue*)
      do (funcall callback)))
 
+(defun timer-block-loop ()
+  (loop
+     do (sleep 10000)))
+
 (defun start-poll-loop-thread ()
   (setq *poll-loop-thread* (bordeaux-threads:make-thread #'poll-loop-start :name "Poll loop"))
-  (setq *push-queue-thread* (bordeaux-threads:make-thread #'push-queue-loop :name "Notification push queue")))
+  (setq *push-queue-thread* (bordeaux-threads:make-thread #'push-queue-loop :name "Notification push queue"))
+  (setq *timer-block-thread* (bordeaux-threads:make-thread #'timer-block-loop :name "Timer block loop")))
 
-(defun start-polling (init-fn disconnect-callback)
+(defun push-ping-message (opened-socket)
+  (containers:queue-push *push-queue*
+                         #'(lambda ()
+                             (let ((out (opened-socket/stream opened-socket)))
+                               (html5-notification:send-ping-message (opened-socket/stream opened-socket))
+                               (finish-output out)))))
+
+(defun start-polling (stream init-fn disconnect-callback)
   (check-type init-fn function)
   (check-type disconnect-callback function)
   (signal 'request-polling
           :init-fn init-fn
-          :disconnect-callback disconnect-callback))
+          :disconnect-callback disconnect-callback
+          :stream stream))
 
 (defun start-polling-with-sources (sources)
+  (setf (hunchentoot:header-out :cache-control) "no-cache")
+  (setf (hunchentoot:content-type*) "text/event-stream")
   (let ((stream (flexi-streams:make-flexi-stream (hunchentoot:send-headers) :external-format :utf8))
         (subscription (make-instance 'html5-notification:subscription
                                      :sources sources
@@ -123,14 +156,15 @@ one thread per connection."))
                                                     (finish-output stream))))))))
                
                (init (socket)
-                 (declare (ignore socket))
                  (dolist (e html5-notification::entries)
                    (let ((entry e))
-                     (html5-notification:add-listener entry #'(lambda () (push-update e))))))
+                     (html5-notification:add-listener entry #'(lambda () (push-update e)))))
+                 (trivial-timers:schedule-timer (opened-socket/timer socket) 30
+                                                :repeat-interval 30))
 
                (remove-subscription (socket)
-                 (declare (ignore socket))
+                 (trivial-timers:unschedule-timer (opened-socket/timer socket))
                  (dolist (e html5-notification::entries)
                    (html5-notification:remove-listener e))))
 
-        (start-polling #'init #'remove-subscription)))))
+        (start-polling stream #'init #'remove-subscription)))))
