@@ -136,7 +136,7 @@ one thread per connection."))
           :disconnect-callback disconnect-callback
           :stream stream))
 
-(defun start-polling-with-sources (sources)
+(defun start-polling-with-sources (sources &key after-write-callback disconnect-callback)
   (setf (hunchentoot:header-out :cache-control) "no-cache")
   (setf (hunchentoot:content-type*) "text/event-stream")
   (let ((stream (flexi-streams:make-flexi-stream (hunchentoot:send-headers) :external-format :utf8))
@@ -146,14 +146,16 @@ one thread per connection."))
     (with-slots (html5-notification::entries) subscription
       (labels ((push-update (e)
                  (multiple-value-bind (prefixed new-id) (html5-notification:updated-objects-from-entry e)
-                   (html5-notification::with-locked-instance (subscription)
+                   (html5-notification:with-locked-instance (subscription)
                      (setf (html5-notification:subscription-entry-last-id e) new-id)
                      (when prefixed
                        (let ((message (html5-notification:format-update-message-text subscription prefixed)))
                          (containers:queue-push *push-queue*
                                                 #'(lambda ()
                                                     (write-string message stream)
-                                                    (finish-output stream))))))))
+                                                    (finish-output stream)))
+                         (when after-write-callback
+                           (funcall after-write-callback)))))))
                
                (init (socket)
                  (dolist (e html5-notification::entries)
@@ -165,6 +167,8 @@ one thread per connection."))
                (remove-subscription (socket)
                  (trivial-timers:unschedule-timer (opened-socket/timer socket))
                  (dolist (e html5-notification::entries)
-                   (html5-notification:remove-listener e))))
+                   (html5-notification:remove-listener e)
+                   (when disconnect-callback
+                     (funcall disconnect-callback)))))
 
         (start-polling stream #'init #'remove-subscription)))))
