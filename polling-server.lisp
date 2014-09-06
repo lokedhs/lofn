@@ -75,31 +75,46 @@ one thread per connection."))
     (containers:queue-push *master-poll-waiting-sockets* opened-socket)
     (bordeaux-threads:interrupt-thread *poll-loop-thread* #'(lambda () (signal 'socket-updated-condition)))))
 
+(defvar *poll-loop-wait-flag* (containers:make-atomic-variable nil))
+
 (defun poll-loop ()
-  (loop
-     do (block wait-for-disconnect
-          (handler-bind ((socket-updated-condition #'(lambda (condition)
-                                                       (declare (ignore condition))
-                                                       (loop
-                                                          for socket = (containers:queue-pop *master-poll-waiting-sockets*
-                                                                                             :if-empty nil)
-                                                          while socket
-                                                          do (push socket *active-sockets*))
-                                                       (return-from wait-for-disconnect))))
-            (if *active-sockets*
-                (multiple-value-bind (sockets remaining)
-                    (usocket:wait-for-input (mapcar #'opened-socket/socket *active-sockets*) :ready-only t)
-                  (declare (ignore remaining))
-                  (dolist (socket sockets)
-                    (handler-case
-                        (close (usocket:socket-stream socket))
-                      (error () (format t "Error closing socket: ~s~%" socket)))
-                    (let ((pair (find socket *active-sockets* :key #'opened-socket/socket)))
-                      (setq *active-sockets* (delete socket *active-sockets* :key #'opened-socket/socket))
-                      (alexandria:when-let ((callback (opened-socket/disconnect-callback pair)))
-                        (funcall callback pair)))))
-                ;; No active sockets, just sleep for a while
-                (sleep 10))))))
+  (labels ((copy-socket-list ()
+             (loop
+                for socket = (containers:queue-pop *master-poll-waiting-sockets*
+                                                   :if-empty nil)
+                while socket
+                do (push socket *active-sockets*))))
+    (loop
+       do (block wait-for-disconnect
+            (handler-bind ((socket-updated-condition #'(lambda (condition)
+                                                         (declare (ignore condition))
+                                                         (containers:with-atomic-variable (v *poll-loop-wait-flag*)
+                                                           (when v
+                                                             (return-from wait-for-disconnect))))))
+              
+              (unwind-protect
+                   (progn
+                     (containers:with-atomic-variable (v *poll-loop-wait-flag*)
+                       (setq v t)
+                       (copy-socket-list))
+                     (let ((s (if *active-sockets*
+                                  (multiple-value-bind (sockets remaining)
+                                      (usocket:wait-for-input (mapcar #'opened-socket/socket *active-sockets*) :ready-only t)
+                                    (declare (ignore remaining))
+                                    sockets)
+                                  ;; No active sockets, just sleep for a while
+                                  (progn
+                                    (sleep 10)
+                                    nil))))
+                       (dolist (socket s)
+                         (handler-case
+                             (close (usocket:socket-stream socket))
+                           (error () (format t "Error closing socket: ~s~%" socket)))
+                         (let ((pair (find socket *active-sockets* :key #'opened-socket/socket)))
+                           (setq *active-sockets* (delete socket *active-sockets* :key #'opened-socket/socket))
+                           (alexandria:when-let ((callback (opened-socket/disconnect-callback pair)))
+                             (funcall callback pair))))))
+                (setf (containers:atomic/value *poll-loop-wait-flag*) nil)))))))
 
 (defun poll-loop-start ()
   (poll-loop))
