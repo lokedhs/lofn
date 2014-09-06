@@ -127,7 +127,8 @@ written to."
 
 (defun process-json (fn)
   (check-type fn function)
-  (let* ((data (st-json:read-json (hunchentoot:raw-post-data :want-stream t)))
+  (let* ((json-text (hunchentoot:raw-post-data :force-text t))
+         (data (st-json:read-json-from-string json-text))
          (result (funcall fn data)))
     (with-hunchentoot-stream (out "application/json")
       (st-json:write-json result out))))
