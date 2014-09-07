@@ -125,7 +125,9 @@ one thread per connection."))
 (defun push-queue-loop ()
   (loop
      for callback = (containers:queue-pop-wait *push-queue*)
-     do (funcall callback)))
+     do (handler-case
+            (funcall callback)
+          (error (condition) (format *out* "Error pushing message: ~s~%" condition)))))
 
 (defun timer-block-loop ()
   (loop
