@@ -30,7 +30,7 @@ file have been changed")
 (defvar *cached-templates-lock* (bordeaux-threads:make-lock "cached-templates-lock"))
 
 (defun parse-template-file (pathname &key binary (encoding :utf-8))
-  (with-open-file (s pathname)
+  (with-open-file (s pathname :external-format :utf-8)
     (parse-template s :binary binary :encoding encoding)))
 
 (defun exec-template-file (file data stream &key binary (encoding :utf-8))
