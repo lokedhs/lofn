@@ -153,7 +153,7 @@ written to."
             `(process-json #'(lambda (,data-symbol) ,@declarations ,@rem-forms))
             `(process-json-no-data #'(lambda () ,@declarations ,@rem-forms))))))
 
-(defmacro with-parameters (params &body body)
+(defmacro with-parameters ((&rest params) &body body)
   `(let ,(mapcar #'(lambda (v)
                      (let ((var (if (symbolp v) v (car v))))
                        (unless (and (not (null var)) (symbolp var))
