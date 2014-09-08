@@ -150,7 +150,7 @@ one thread per connection."))
                                (html5-notification:send-ping-message (opened-socket/stream opened-socket))
                                (finish-output out)
                                (alexandria:when-let ((session (opened-socket/session opened-socket)))
-                                 (setf (slot-value session 'last-click) (get-universal-time)))))))
+                                 (setf (slot-value session 'hunchentoot::last-click) (get-universal-time)))))))
 
 (defun start-polling (stream init-fn disconnect-callback)
   (check-type init-fn function)
