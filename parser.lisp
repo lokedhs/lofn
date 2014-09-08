@@ -397,6 +397,7 @@ output stream to which the result should be written."
                                                      `(flexi-streams:make-flexi-stream ,stream-sym :external-format ,encoding)
                                                      stream-sym))
                               (current-output *current-stream*))
+                         (declare (ignorable current-content))
                          ,template-form
                          (finish-output *current-stream*)))))
     (compile name code-form)
