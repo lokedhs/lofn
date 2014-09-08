@@ -32,12 +32,13 @@ one thread per connection."))
                                                       (setq hunchentoot:*close-hunchentoot-stream* nil)
                                                       (return-from process (list (request-polling/stream condition)
                                                                                  (request-polling/init-fn condition)
-                                                                                 (request-polling/disconnect-callback condition))))))
+                                                                                 (request-polling/disconnect-callback condition)
+                                                                                 hunchentoot:*session*)))))
                     (call-next-method)
                     nil))))
     (when result
-      (destructuring-bind (stream init-fn disconnect-callback) result
-          (register-polling-socket socket stream init-fn disconnect-callback)))))
+      (destructuring-bind (stream init-fn disconnect-callback session) result
+          (register-polling-socket socket stream init-fn disconnect-callback session)))))
 
 (defvar *master-poll-waiting-sockets* (containers:make-blocking-queue))
 (defvar *active-sockets* nil)
@@ -57,7 +58,10 @@ one thread per connection."))
                         :reader opened-socket/timer)
    (stream              :type stream
                         :initarg :stream
-                        :reader opened-socket/stream)))
+                        :reader opened-socket/stream)
+   (session             :type (or null hunchentoot:session)
+                        :initarg :session
+                        :reader opened-socket/session)))
 
 (defmethod initialize-instance :after ((obj opened-socket) &key &allow-other-keys)
   (setf (slot-value obj 'timer) (trivial-timers:make-timer #'(lambda ()
@@ -65,11 +69,12 @@ one thread per connection."))
                                                            :name "Ping timer"
                                                            :thread *timer-block-thread*)))
 
-(defun register-polling-socket (socket stream init-fn disconnect-callback)
+(defun register-polling-socket (socket stream init-fn disconnect-callback session)
   (let ((opened-socket (make-instance 'opened-socket
                                       :socket socket
                                       :disconnect-callback disconnect-callback
-                                      :stream stream)))
+                                      :stream stream
+                                      :session session)))
     (when init-fn
       (funcall init-fn opened-socket))
     (containers:queue-push *master-poll-waiting-sockets* opened-socket)
@@ -143,7 +148,9 @@ one thread per connection."))
                          #'(lambda ()
                              (let ((out (opened-socket/stream opened-socket)))
                                (html5-notification:send-ping-message (opened-socket/stream opened-socket))
-                               (finish-output out)))))
+                               (finish-output out)
+                               (setf (slot-value (opened-socket/session opened-socket) 'last-click)
+                                     (get-universal-time))))))
 
 (defun start-polling (stream init-fn disconnect-callback)
   (check-type init-fn function)
