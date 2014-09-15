@@ -20,7 +20,8 @@
            #:polling-server-acceptor
            #:start-polling
            #:remove-listener
-           #:start-polling-with-sources))
+           #:start-polling-with-sources
+           #:blocking-queue))
 
 (in-package #:lofn)
 

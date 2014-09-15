@@ -48,7 +48,15 @@ one thread per connection."))
 (defvar *master-poll-waiting-sockets* (containers:make-blocking-queue))
 (defvar *active-sockets* nil)
 (defvar *poll-loop-thread* nil)
-(defvar *timer-block-thread* nil)
+(defvar *timer-block-thread* nil
+  "The thread that is responsible for processing timeout callbacks.")
+
+(defvar *push-queue* (containers:make-blocking-queue)
+  "Queue containing notifications that data needs to be pushed to a
+socket. Each element is a cons where car is the socket and cdr is a
+function to be called on the socket.")
+(defvar *push-queue-threads* nil
+  "A list of all threads that push writes to the clients.")
 
 (define-condition socket-updated-condition ()
   ())
@@ -69,7 +77,13 @@ one thread per connection."))
                          :reader opened-socket/stream)
    (session              :type (or null hunchentoot:session)
                          :initarg :session
-                         :reader opened-socket/session)))
+                         :reader opened-socket/session)
+   (queue                :type containers:blocking-queue
+                         :initform (containers:make-blocking-queue)
+                         :reader opened-socket/queue)
+   (in-progress-p        :type containers:atomic-variable
+                         :initform (containers:make-atomic-variable nil)
+                         :reader opened-socket/in-progress-p)))
 
 (defmethod initialize-instance :after ((obj opened-socket) &rest rest)
   (declare (ignore rest))
@@ -138,15 +152,27 @@ one thread per connection."))
 (defun poll-loop-start ()
   (poll-loop))
 
-(defvar *push-queue* (containers:make-blocking-queue))
-(defvar *push-queue-thread* nil)
-
 (defun push-queue-loop ()
   (loop
-     for callback = (containers:queue-pop-wait *push-queue*)
-     do (handler-case
-            (funcall callback)
-          (error (condition) (format *out* "Error pushing message: ~s~%" condition)))))
+     for socket = (containers:queue-pop-wait *push-queue*)
+     do (let ((should-send nil))
+          (containers:with-atomic-variable (v (opened-socket/in-progress-p socket))
+            (unless v
+              (setq should-send t)
+              (setq v t)))
+          (when should-send
+            (loop
+               for callback = (containers:with-atomic-variable (v (opened-socket/in-progress-p socket))
+                                (or (containers:queue-pop (opened-socket/queue socket) :if-empty nil)
+                                    (progn (setf v nil) nil)))
+               while callback
+               do (handler-case
+                      (funcall callback socket)
+                    (error (condition) (format *out* "Error pushing message: ~s~%" condition))))))))
+
+(defun enqueue-on-push-queue (socket callback)
+  (containers:queue-push (opened-socket/queue socket) callback)
+  (containers:queue-push *push-queue* socket))
 
 (defun timer-block-loop ()
   (loop
@@ -154,16 +180,19 @@ one thread per connection."))
 
 (defun start-poll-loop-thread ()
   (setq *poll-loop-thread* (bordeaux-threads:make-thread #'poll-loop-start :name "Poll loop"))
-  (setq *push-queue-thread* (bordeaux-threads:make-thread #'push-queue-loop :name "Notification push queue"))
+  (setq *push-queue-threads* (loop
+                               repeat 10
+                               for i from 0
+                               collect (bordeaux-threads:make-thread #'push-queue-loop :name (format nil "Notification push queue: ~a" i))))
   (setq *timer-block-thread* (bordeaux-threads:make-thread #'timer-block-loop :name "Timer block loop")))
 
 (defun push-ping-message (opened-socket)
-  (containers:queue-push *push-queue*
-                         #'(lambda ()
-                             (let ((out (opened-socket/stream opened-socket)))
-                               (html5-notification:send-ping-message (opened-socket/stream opened-socket))
+  (enqueue-on-push-queue opened-socket
+                         #'(lambda (socket)
+                             (let ((out (opened-socket/stream socket)))
+                               (html5-notification:send-ping-message out)
                                (finish-output out)
-                               (alexandria:when-let ((session (opened-socket/session opened-socket)))
+                               (alexandria:when-let ((session (opened-socket/session socket)))
                                  (setf (slot-value session 'hunchentoot::last-click) (get-universal-time)))))))
 
 (defun start-polling (stream init-fn disconnect-callback after-empty-callback)
@@ -183,23 +212,24 @@ one thread per connection."))
                                      :sources sources
                                      :http-event (hunchentoot:header-in* :last-event-id))))
     (with-slots (html5-notification::entries) subscription
-      (labels ((push-update (e)
+      (labels ((push-update (socket e)
                  (multiple-value-bind (prefixed new-id) (html5-notification:updated-objects-from-entry e)
                    (html5-notification:with-locked-instance (subscription)
                      (setf (html5-notification:subscription-entry-last-id e) new-id)
                      (when prefixed
                        (let ((message (html5-notification:format-update-message-text subscription prefixed)))
-                         (containers:queue-push *push-queue*
-                                                #'(lambda ()
-                                                    (write-string message stream)
-                                                    (finish-output stream)))
+                         (enqueue-on-push-queue socket
+                                                #'(lambda (opened-socket)
+                                                    (let ((s (opened-socket/stream opened-socket)))
+                                                      (write-string message s)
+                                                      (finish-output s))))
                          (when after-write
                            (funcall after-write)))))))
                
                (init (socket)
                  (dolist (e html5-notification::entries)
                    (let ((entry e))
-                     (html5-notification:add-listener entry #'(lambda () (push-update e)))))
+                     (html5-notification:add-listener entry #'(lambda () (push-update socket e)))))
                  (trivial-timers:schedule-timer (opened-socket/timer socket) 30
                                                 :repeat-interval 30))
 
