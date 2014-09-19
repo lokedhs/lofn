@@ -1,7 +1,5 @@
 (in-package :lofn)
 
-(declaim #.*compile-decl*)
-
 (defvar *begin-code* "<%"
   "The string that opens a script segment. The end of a script segment is
 specified by *END-CODE*.")

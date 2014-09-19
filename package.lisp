@@ -22,7 +22,3 @@
            #:remove-listener
            #:start-polling-with-sources
            #:blocking-queue))
-
-(in-package #:lofn)
-
-(defparameter *compile-decl* '(optimize (speed 0) (safety 3) (debug 3)))

@@ -1,7 +1,5 @@
 (in-package :lofn)
 
-(declaim #.*compile-decl*)
-
 (alexandria:define-constant +CRLF+ (format nil "~c~c" #\Return #\Newline) :test 'equal)
 
 (define-condition request-polling ()

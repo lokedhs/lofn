@@ -1,7 +1,5 @@
 (in-package :lofn)
 
-(declaim #.*compile-decl*)
-
 (defclass parsed-file ()
   ((name            :type pathname
                     :reader parsed-file-pathspec

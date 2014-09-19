@@ -1,7 +1,5 @@
 (in-package :lofn)
 
-(declaim #.*compile-decl*)
-
 (defvar *files-base-dir*
   (asdf:component-pathname (asdf:find-system :lofn)))
 

@@ -4,8 +4,6 @@
 
 (in-package :lofn)
 
-(declaim #.*compile-decl*)
-
 (defvar *escape-char-p* nil)
 
 (defun escape-string (string s &key (test *escape-char-p*))
