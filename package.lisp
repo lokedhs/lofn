@@ -21,4 +21,5 @@
            #:start-polling
            #:remove-listener
            #:start-polling-with-sources
-           #:blocking-queue))
+           #:blocking-queue
+           #:*default-include-root-dir*))

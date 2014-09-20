@@ -24,14 +24,17 @@
   "The minimum number of seconds between checks whether the template
 file have been changed")
 
+(defvar *default-include-root-dir* nil
+  "The base dir from which include files are found")
+
 (defvar *cached-templates* (make-hash-table :test 'equal))
 (defvar *cached-templates-lock* (bordeaux-threads:make-lock "cached-templates-lock"))
 
-(defun parse-template-file (pathname &key binary (encoding :utf-8))
+(defun parse-template-file (pathname &key binary (encoding :utf-8) include-root-dir)
   (with-open-file (s pathname :external-format :utf-8)
-    (parse-template s :binary binary :encoding encoding)))
+    (parse-template s :binary binary :encoding encoding :include-root-dir include-root-dir)))
 
-(defun exec-template-file (file data stream &key binary (encoding :utf-8))
+(defun exec-template-file (file data stream &key binary (encoding :utf-8) include-root-dir)
   "Load and compile FILE and put it into the template cache if it was not
 already in the cache. Then run the template using DATA and write the
 output to STREAM."
@@ -50,7 +53,10 @@ output to STREAM."
                                                               :name pathname
                                                               :template (parse-template-file pathname
                                                                                              :binary binary
-                                                                                             :encoding encoding)
+                                                                                             :encoding encoding
+                                                                                             :include-root-dir (or include-root-dir
+                                                                                                                   *default-include-root-dir*
+                                                                                                                   *template-files-base-dir*))
                                                               :last-time-check (get-universal-time)))
                                          ;; The cached file is up to date                                         
                                          cached))

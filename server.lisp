@@ -1,18 +1,5 @@
 (in-package :lofn)
 
-(defvar *files-base-dir*
-  (asdf:component-pathname (asdf:find-system :lofn)))
-
-(defvar *template-files-base-dir* nil)
-
-(defun make-template-files-base-dir ()
-  (or *template-files-base-dir* (merge-pathnames #p"template/" *files-base-dir*)))
-
-(defvar *simple-files-base-dir* nil)
-
-(defun make-simple-files-base-dir ()
-  (or *simple-files-base-dir* (merge-pathnames #p"files/" *files-base-dir*)))
-
 (defvar *url-handlers* (make-hash-table :test 'equal)
   "A hash table keyed on the base URL that maps to the underlying handler function")
 
