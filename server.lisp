@@ -167,7 +167,7 @@ written to."
   (let ((a (make-server address port dirs dispatcher-list acceptor-name)))
     (hunchentoot:start a)
     (setq hunchentoot:*show-lisp-errors-p* t)
-    (setq hunchentoot:*log-lisp-warnings-p* t)
+    (setq hunchentoot:*log-lisp-warnings-p* nil)
     (setq hunchentoot:*log-lisp-backtraces-p* t)
     (setf (hunchentoot:acceptor-access-log-destination a) (make-broadcast-stream))
     (push a *current-acceptors*)
