@@ -31,7 +31,7 @@ one thread per connection."))
 (defmethod hunchentoot:process-connection ((acceptor polling-server-acceptor) socket)
   (let ((result (block process                  
                   (handler-bind ((request-polling #'(lambda (condition)
-                                                      (setq hunchentoot:*close-hunchentoot-stream* nil)
+                                                      (hunchentoot:detach-socket acceptor)
                                                       (return-from process (list (request-polling/stream condition)
                                                                                  (request-polling/init-fn condition)
                                                                                  (request-polling/disconnect-callback condition)
