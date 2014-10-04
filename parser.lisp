@@ -88,8 +88,9 @@ or NIL if the information is not available."))
                       ("var"          'var)
                       (","            '|,|)
                       ("="            '|=|)
+                      ("=="           '|==|)
                       ("\\("          '|(|)
-                      ("\\)"          '|(|)
+                      ("\\)"          '|)|)
                       ("@"            '|@|)
                       ("([a-z]?)#"    (lambda (exprs) (list 'print (aref exprs 0))))
                       ("\\."          '|.|)
@@ -242,7 +243,7 @@ or NIL if the information is not available."))
 (short-define-parser *template-parser* ((:start-symbol document)
                                         (:terminals (template symbol string if end else while repeat number
                                                               for with deftemplate call include print var
-                                                              |,| |=| |(| |)| |@| |.| |/| |:| |!|))
+                                                              |,| |=| |(| |)| |@| |.| |/| |:| |!| |==|))
                                         (:precedence ((:right template))))
                      
   (document
@@ -341,7 +342,14 @@ or NIL if the information is not available."))
     `(not ,expression)))
 
   (expression
-   ((data) data))
+   ((data) data)
+   ((|(| wrap-expression |)|) wrap-expression))
+
+  (wrap-expression
+   ((expression)
+    expression)
+   (((expression e1) |==| (expression e2))
+    `(equal ,e1 ,e2)))
 
   (number-expr
    ((number) number))
