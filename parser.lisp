@@ -89,6 +89,9 @@ or NIL if the information is not available."))
                       (","            '|,|)
                       ("="            '|=|)
                       ("=="           '|==|)
+                      ("\\+"          '|+|)
+                      ("-"            '|-|)
+                      ("\\*"          '|*|)
                       ("\\("          '|(|)
                       ("\\)"          '|)|)
                       ("@"            '|@|)
@@ -243,7 +246,8 @@ or NIL if the information is not available."))
 (short-define-parser *template-parser* ((:start-symbol document)
                                         (:terminals (template symbol string if end else while repeat number
                                                               for with deftemplate call include print var
-                                                              |,| |=| |(| |)| |@| |.| |/| |:| |!| |==|))
+                                                              |,| |=| |(| |)| |@| |.| |/| |:| |!| |==|
+                                                              |+| |-| |*|))
                                         (:precedence ((:right template))))
                      
   (document
@@ -338,8 +342,8 @@ or NIL if the information is not available."))
    ((string)     string)
    (((|/| v1) interned-symbol (|/| v3) expression)
     `(funcall ',interned-symbol ,expression))
-   ((|!| expression)
-    `(not ,expression)))
+   ((|!| expression) `(not ,expression))
+   ((number-expr) number-expr))
 
   (expression
    ((data) data)
@@ -349,7 +353,15 @@ or NIL if the information is not available."))
    ((expression)
     expression)
    (((expression e1) |==| (expression e2))
-    `(equal ,e1 ,e2)))
+    `(equal ,e1 ,e2))
+   (((expression e1) |+| (expression e2))
+    `(+ ,e1 ,e2))
+   (((expression e1) |-| (expression e2))
+    `(- ,e1 ,e2))
+   (((expression e1) |*| (expression e2))
+    `(* ,e1 ,e2))
+   (((expression e1) |/| (expression e2))
+    `(/ ,e1 ,e2)))
 
   (number-expr
    ((number) number))
