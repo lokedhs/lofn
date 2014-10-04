@@ -12,6 +12,7 @@ specified by *END-CODE*.")
 (defvar *output-binary* nil)
 (defvar *output-encoding* nil)
 (defvar *subtemplate-list* nil)
+(defvar *variables-list* nil)
 (defvar *include-root-dir* nil)
 (defvar *current-stream* nil "The stream that the template output is written to.")
 
@@ -84,6 +85,7 @@ or NIL if the information is not available."))
                       ("template"     'deftemplate)
                       ("call"         'call)
                       ("include"      'include)
+                      ("var"          'var)
                       (","            '|,|)
                       ("="            '|=|)
                       ("\\("          '|(|)
@@ -239,7 +241,7 @@ or NIL if the information is not available."))
 
 (short-define-parser *template-parser* ((:start-symbol document)
                                         (:terminals (template symbol string if end else while repeat number
-                                                              for with deftemplate call include print
+                                                              for with deftemplate call include print var
                                                               |,| |=| |(| |)| |@| |.| |/| |:| |!|))
                                         (:precedence ((:right template))))
                      
@@ -312,6 +314,11 @@ or NIL if the information is not available."))
           (signal-template-error (format nil "Failed to open include file \"~a\", file does not exist." filename)))
         (inner-parse-stream-to-form file-in))))
 
+   ((var (symbol varname) |=| expression)
+    (let ((symbol (string->symbol varname)))
+      (pushnew symbol *variables-list*)
+      `(setq ,symbol ,expression)))
+
    ) ; end of DOCUMENT-NODE
 
   (else-statement
@@ -354,10 +361,13 @@ or NIL if the information is not available."))
         (*current-line-num* 0))
     (handler-case
         (let ((form (yacc:parse-with-lexer (make-stream-template-lexer stream) *template-parser*)))
-          `(labels ,(loop
-                       for value being each hash-value in *subtemplate-list*
-                       collect `(,(car value) (current-content) ,@(cdr value)))
-             ,form))
+          `(let ,(mapcar #'(lambda (symbol)
+                             (list symbol nil))
+                         *variables-list*)
+             (labels ,(loop
+                         for value being each hash-value in *subtemplate-list*
+                         collect `(,(car value) (current-content) ,@(cdr value)))
+               ,form)))
       (yacc:yacc-parse-error (condition) (signal-template-error
                                           (format nil "Parse error: terminal=~s value=~s expected=~s"
                                                   (yacc:yacc-parse-error-terminal condition)
@@ -368,7 +378,8 @@ or NIL if the information is not available."))
   (let ((*output-binary* binary)
         (*output-encoding* encoding)
         (*subtemplate-list* (make-hash-table :test 'equal))
-        (*include-root-dir* (or include-root-dir *default-pathname-defaults*)))
+        (*include-root-dir* (or include-root-dir *default-pathname-defaults*))
+        (*variables-list* nil))
     (inner-parse-stream-to-form stream)))
 
 (defun parse-template (stream &key binary (encoding :utf-8) include-root-dir)
