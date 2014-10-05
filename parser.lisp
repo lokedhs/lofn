@@ -384,6 +384,7 @@ or NIL if the information is not available."))
           `(let ,(mapcar #'(lambda (symbol)
                              (list symbol nil))
                          *variables-list*)
+             (declare (ignorable ,@*variables-list*))
              (labels ,(loop
                          for value being each hash-value in *subtemplate-list*
                          collect `(,(car value) (current-content) ,@(cdr value)))
