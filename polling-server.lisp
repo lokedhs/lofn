@@ -169,6 +169,8 @@ function to be called on the socket.")
                     (error (condition) (format *out* "Error pushing message: ~s~%" condition))))))))
 
 (defun enqueue-on-push-queue (socket callback)
+  (check-type socket opened-socket)
+  (check-type callback function)
   (containers:queue-push (opened-socket/queue socket) callback)
   (containers:queue-push *push-queue* socket))
 
