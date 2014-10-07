@@ -161,8 +161,9 @@ function to be called on the socket.")
           (when should-send
             (loop
                for callback = (containers:with-atomic-variable (v (opened-socket/in-progress-p socket))
-                                (or (containers:queue-pop (opened-socket/queue socket) :if-empty nil)
-                                    (progn (setf v nil) nil)))
+                                (let ((value (containers:queue-pop (opened-socket/queue socket) :if-empty nil)))
+                                  (or value
+                                      (progn (setf v nil) nil))))
                while callback
                do (handler-case
                       (funcall callback socket)
