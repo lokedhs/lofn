@@ -111,8 +111,7 @@ function to be called on the socket.")
 (defun poll-loop ()
   (labels ((copy-socket-list ()
              (loop
-                for socket = (containers:queue-pop *master-poll-waiting-sockets*
-                                                   :if-empty nil)
+                for socket = (containers:queue-pop *master-poll-waiting-sockets* :if-empty nil)
                 while socket
                 do (push socket *active-sockets*))))
     (loop
