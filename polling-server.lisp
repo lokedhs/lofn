@@ -122,12 +122,12 @@ function to be called on the socket.")
                                                            (when v
                                                              (return-from wait-for-disconnect))))))
               
-              (unwind-protect
-                   (progn
-                     (containers:with-atomic-variable (v *poll-loop-wait-flag*)
-                       (setq v t)
-                       (copy-socket-list))
-                     (let ((s (if *active-sockets*
+              (let ((s (unwind-protect
+                            (progn
+                              (containers:with-atomic-variable (v *poll-loop-wait-flag*)
+                                (setq v t)
+                                (copy-socket-list))
+                              (if *active-sockets*
                                   (multiple-value-bind (sockets remaining)
                                       (usocket:wait-for-input (mapcar #'opened-socket/socket *active-sockets*) :ready-only t)
                                     (declare (ignore remaining))
@@ -135,16 +135,17 @@ function to be called on the socket.")
                                   ;; No active sockets, just sleep for a while
                                   (progn
                                     (sleep 10)
-                                    nil))))
-                       (dolist (socket s)
-                         (handler-case
-                             (close (usocket:socket-stream socket))
-                           (error () (format t "Error closing socket: ~s~%" socket)))
-                         (let ((pair (find socket *active-sockets* :key #'opened-socket/socket)))
-                           (setq *active-sockets* (delete socket *active-sockets* :key #'opened-socket/socket))
-                           (alexandria:when-let ((callback (opened-socket/disconnect-callback pair)))
-                             (funcall callback pair))))))
-                (setf (containers:atomic/value *poll-loop-wait-flag*) nil)))))))
+                                    nil)))
+                         ;; Unwind form
+                         (setf (containers:atomic/value *poll-loop-wait-flag*) nil))))
+                (dolist (socket s)
+                  (handler-case
+                      (close (usocket:socket-stream socket))
+                    (error () (format t "Error closing socket: ~s~%" socket)))
+                  (let ((pair (find socket *active-sockets* :key #'opened-socket/socket)))
+                    (setq *active-sockets* (delete socket *active-sockets* :key #'opened-socket/socket))
+                    (alexandria:when-let ((callback (opened-socket/disconnect-callback pair)))
+                      (funcall callback pair))))))))))
 
 (defun poll-loop-start ()
   (poll-loop))
