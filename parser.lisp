@@ -381,14 +381,10 @@ or NIL if the information is not available."))
         (*current-line-num* 0))
     (handler-case
         (let ((form (yacc:parse-with-lexer (make-stream-template-lexer stream) *template-parser*)))
-          `(let ,(mapcar #'(lambda (symbol)
-                             (list symbol nil))
-                         *variables-list*)
-             (declare (ignorable ,@*variables-list*))
-             (labels ,(loop
-                         for value being each hash-value in *subtemplate-list*
-                         collect `(,(car value) (current-content) ,@(cdr value)))
-               ,form)))
+          `(labels ,(loop
+                       for value being each hash-value in *subtemplate-list*
+                       collect `(,(car value) (current-content) ,@(cdr value)))
+             ,form))
       (yacc:yacc-parse-error (condition) (signal-template-error
                                           (format nil "Parse error: terminal=~s value=~s expected=~s"
                                                   (yacc:yacc-parse-error-terminal condition)
@@ -399,9 +395,27 @@ or NIL if the information is not available."))
   (let ((*output-binary* binary)
         (*output-encoding* encoding)
         (*subtemplate-list* (make-hash-table :test 'equal))
-        (*include-root-dir* (or include-root-dir *default-pathname-defaults*))
-        (*variables-list* nil))
+        (*include-root-dir* (or include-root-dir *default-pathname-defaults*)))
     (inner-parse-stream-to-form stream)))
+
+(defun parse-stream-and-build-toplevel (stream binary encoding include-root-dir)
+  (let* ((*variables-list* nil)
+         (template-form (parse-stream-to-form stream binary encoding include-root-dir))
+         (stream-sym (gensym "STREAM-"))
+         (data-sym (gensym "DATA-")))
+    `(lambda (,data-sym ,stream-sym)
+       (let* ((current-content ,data-sym)
+              (*current-stream* ,(if binary
+                                     `(flexi-streams:make-flexi-stream ,stream-sym :external-format ,encoding)
+                                     stream-sym))
+              (current-output *current-stream*))
+         (declare (ignorable current-content))
+         (let ,(mapcar #'(lambda (symbol)
+                           (list symbol nil))
+                       *variables-list*)
+           (declare (ignorable ,@*variables-list*))
+           ,template-form
+           (finish-output *current-stream*))))))
 
 (defun parse-template (stream &key binary (encoding :utf-8) include-root-dir)
   "Parses and compiles the template definition given as STREAM. If
@@ -417,19 +431,8 @@ command will search for files.
 The return value is a function that takes two arguments, DATA and OUTPUT.
 DATA is the data that will be used by the template, and OUTPUT is the
 output stream to which the result should be written."
-  (let* ((template-form (parse-stream-to-form stream binary encoding include-root-dir))
-         (name (gensym))
-         (stream-sym (gensym "STREAM-"))
-         (data-sym (gensym "DATA-"))
-         (code-form `(lambda (,data-sym ,stream-sym)
-                       (let* ((current-content ,data-sym)
-                              (*current-stream* ,(if binary
-                                                     `(flexi-streams:make-flexi-stream ,stream-sym :external-format ,encoding)
-                                                     stream-sym))
-                              (current-output *current-stream*))
-                         (declare (ignorable current-content))
-                         ,template-form
-                         (finish-output *current-stream*)))))
+  (let* ((name (gensym))
+         (code-form (parse-stream-and-build-toplevel stream binary encoding include-root-dir)))
     (compile name code-form)
     (symbol-function name)))
 
