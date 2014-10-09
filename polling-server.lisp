@@ -3,21 +3,25 @@
 (alexandria:define-constant +CRLF+ (format nil "~c~c" #\Return #\Newline) :test 'equal)
 
 (define-condition request-polling ()
-  ((init-fn              :type function
-                         :initarg :init-fn
-                         :initform nil
-                         :reader request-polling/init-fn)
-   (disconnect-callback  :type function
-                         :initarg :disconnect-callback
-                         :initform nil
-                         :reader request-polling/disconnect-callback)
-   (after-empty-callback :type function
-                         :initarg :after-empty-callback
-                         :initform nil
-                         :reader request-polling/after-empty-callback)
-   (stream               :type stream
-                         :initarg :stream
-                         :reader request-polling/stream))
+  ((init-fn               :type function
+                          :initarg :init-fn
+                          :initform nil
+                          :reader request-polling/init-fn)
+   (disconnect-callback   :type function
+                          :initarg :disconnect-callback
+                          :initform nil
+                          :reader request-polling/disconnect-callback)
+   (after-empty-callback  :type function
+                          :initarg :after-empty-callback
+                          :initform nil
+                          :reader request-polling/after-empty-callback)
+   (stream                :type stream
+                          :initarg :stream
+                          :reader request-polling/stream)
+   (disconnect-after-send :type t
+                          :initarg :disconnect-after-send
+                          :initform nil
+                          :reader request-polling/disconnect-after-send))
   (:documentation "Condition that is raised when the request should be
 processed using polling."))
 
@@ -36,12 +40,13 @@ one thread per connection."))
                                                                                  (request-polling/init-fn condition)
                                                                                  (request-polling/disconnect-callback condition)
                                                                                  (request-polling/after-empty-callback condition)
+                                                                                 (request-polling/disconnect-after-send condition)
                                                                                  hunchentoot:*session*)))))
                     (call-next-method)
                     nil))))
     (when result
-      (destructuring-bind (stream init-fn disconnect-callback after-empty-callback session) result
-        (register-polling-socket socket stream init-fn disconnect-callback after-empty-callback session)))))
+      (destructuring-bind (stream init-fn disconnect-callback after-empty-callback disconnect-after-send session) result
+        (register-polling-socket socket stream init-fn disconnect-callback after-empty-callback disconnect-after-send session)))))
 
 (defvar *master-poll-waiting-sockets* (containers:make-blocking-queue))
 (defvar *active-sockets* nil)
@@ -60,28 +65,36 @@ function to be called on the socket.")
   ())
 
 (defclass opened-socket ()
-  ((socket               :initarg :socket
-                         :reader opened-socket/socket)
-   (disconnect-callback  :type function
-                         :initarg :disconnect-callback
-                         :reader opened-socket/disconnect-callback)
-   (after-empty-callback :type function
-                         :initarg :after-empty-callback
-                         :reader opened-socket/after-empty-callback)
-   (timer                :type trivial-timers:timer
-                         :reader opened-socket/timer)
-   (stream               :type stream
-                         :initarg :stream
-                         :reader opened-socket/stream)
-   (session              :type (or null hunchentoot:session)
-                         :initarg :session
-                         :reader opened-socket/session)
-   (queue                :type containers:blocking-queue
-                         :initform (containers:make-blocking-queue)
-                         :reader opened-socket/queue)
-   (in-progress-p        :type containers:atomic-variable
-                         :initform (containers:make-atomic-variable nil)
-                         :reader opened-socket/in-progress-p)))
+  ((socket                 :type usocket:usocket
+                           :initarg :socket
+                           :reader opened-socket/socket)
+   (disconnect-callback    :type function
+                           :initarg :disconnect-callback
+                           :reader opened-socket/disconnect-callback)
+   (after-empty-callback   :type function
+                           :initarg :after-empty-callback
+                           :reader opened-socket/after-empty-callback)
+   (timer                  :type trivial-timers:timer
+                           :reader opened-socket/timer)
+   (stream                 :type stream
+                           :initarg :stream
+                           :reader opened-socket/stream)
+   (session                :type (or null hunchentoot:session)
+                           :initarg :session
+                           :reader opened-socket/session)
+   (queue                  :type containers:blocking-queue
+                           :initform (containers:make-blocking-queue)
+                           :reader opened-socket/queue)
+   (in-progress-p          :type containers:atomic-variable
+                           :initform (containers:make-atomic-variable nil)
+                           :reader opened-socket/in-progress-p)
+   (disconnect-after-send  :type t
+                           :initarg :disconnect-after-send
+                           :initform nil
+                           :reader opened-socket/disconnect-after-send)
+   (discarded-p            :type t
+                           :initform nil
+                           :accessor opened-socket/discarded-p)))
 
 (defmethod initialize-instance :after ((obj opened-socket) &rest rest)
   (declare (ignore rest))
@@ -94,17 +107,24 @@ function to be called on the socket.")
                                    :name "Ping timer"
                                    :thread *timer-block-thread*)))
 
-(defun register-polling-socket (socket stream init-fn disconnect-callback after-empty-callback session)
+(defun notify-poll-loop-updates ()
+  (bordeaux-threads:interrupt-thread *poll-loop-thread* #'(lambda () (signal 'socket-updated-condition))))
+
+(defun register-polling-socket (socket stream init-fn disconnect-callback after-empty-callback disconnect-after-send session)
   (let ((opened-socket (make-instance 'opened-socket
                                       :socket socket
                                       :disconnect-callback disconnect-callback
                                       :after-empty-callback after-empty-callback
                                       :stream stream
-                                      :session session)))
+                                      :session session
+                                      :disconnect-after-send disconnect-after-send)))
     (when init-fn
       (funcall init-fn opened-socket))
     (containers:queue-push *master-poll-waiting-sockets* opened-socket)
-    (bordeaux-threads:interrupt-thread *poll-loop-thread* #'(lambda () (signal 'socket-updated-condition)))))
+    (notify-poll-loop-updates)))
+
+(defun opened-socket/close (socket)
+  (usocket:socket-close (opened-socket/socket socket)))
 
 (defvar *poll-loop-wait-flag* (containers:make-atomic-variable nil))
 
@@ -128,22 +148,36 @@ function to be called on the socket.")
                                 (setq v t)
                                 (copy-socket-list))
                               (if *active-sockets*
-                                  (multiple-value-bind (sockets remaining)
-                                      (usocket:wait-for-input (mapcar #'opened-socket/socket *active-sockets*) :ready-only t)
-                                    (declare (ignore remaining))
-                                    sockets)
-                                  ;; No active sockets, just sleep for a while
+                                  (multiple-value-bind (active discarded)
+                                      (loop
+                                         for opened in *active-sockets*
+                                         for s = (opened-socket/socket opened)
+                                         if (opened-socket/discarded-p opened)
+                                         collect s into discarded
+                                         else collect s into active
+                                         finally (return (values active discarded)))
+                                    (append (if active
+                                                (multiple-value-bind (sockets remaining)
+                                                    (usocket:wait-for-input active :ready-only t)
+                                                  (declare (ignore remaining))
+                                                  sockets)
+                                                ;; ELSE: No active sockets
+                                                nil)
+                                            discarded))
+                                  ;; ELSE: No active sockets, just sleep for a while
                                   (progn
                                     (sleep 10)
                                     nil)))
                          ;; Unwind form
                          (setf (containers:atomic/value *poll-loop-wait-flag*) nil))))
+                ;; s now contains a list of sockets that should be closed and dropped from
+                ;; the list of active sockets.
                 (dolist (socket s)
                   (handler-case
-                      (close (usocket:socket-stream socket))
+                      (usocket:socket-close socket)
                     (error () (format t "Error closing socket: ~s~%" socket)))
                   (let ((pair (find socket *active-sockets* :key #'opened-socket/socket)))
-                    (setq *active-sockets* (delete socket *active-sockets* :key #'opened-socket/socket))
+                    (setq *active-sockets* (delete pair *active-sockets*))
                     (alexandria:when-let ((callback (opened-socket/disconnect-callback pair)))
                       (funcall callback pair))))))))))
 
@@ -160,14 +194,24 @@ function to be called on the socket.")
               (setq v t)))
           (when should-send
             (loop
+               for first = t then nil
                for callback = (containers:with-atomic-variable (v (opened-socket/in-progress-p socket))
                                 (let ((value (containers:queue-pop (opened-socket/queue socket) :if-empty nil)))
                                   (or value
-                                      (progn (setf v nil) nil))))
+                                      (progn
+                                        (unless first
+                                          (finish-output (opened-socket/stream socket)))
+                                        (when (opened-socket/disconnect-after-send socket)
+                                          (setf (opened-socket/discarded-p socket) t)
+                                          (notify-poll-loop-updates))
+                                        (setf v nil)
+                                        nil))))
                while callback
                do (handler-case
                       (funcall callback socket)
-                    (error (condition) (format *out* "Error pushing message: ~s~%" condition))))))))
+                    (error (condition)
+                      (format *out* "Error pushing message: ~s~%" condition)
+                      (setf (opened-socket/discarded-p socket) t))))))))
 
 (defun enqueue-on-push-queue (socket callback)
   (check-type socket opened-socket)
@@ -196,16 +240,17 @@ function to be called on the socket.")
                                (alexandria:when-let ((session (opened-socket/session socket)))
                                  (setf (slot-value session 'hunchentoot::last-click) (get-universal-time)))))))
 
-(defun start-polling (stream init-fn disconnect-callback after-empty-callback)
+(defun start-polling (stream init-fn disconnect-callback after-empty-callback disconnect-after-send)
   (check-type init-fn function)
   (check-type disconnect-callback function)
   (signal 'request-polling
           :init-fn init-fn
           :disconnect-callback disconnect-callback
           :after-empty-callback after-empty-callback
-          :stream stream))
+          :stream stream
+          :disconnect-after-send disconnect-after-send))
 
-(defun start-polling-with-sources (sources &key after-write after-disconnect after-empty)
+(defun start-polling-with-sources (sources &key after-write after-disconnect after-empty disconnect-after-send)
   (setf (hunchentoot:header-out :cache-control) "no-cache")
   (setf (hunchentoot:content-type*) "text/event-stream")
   (let ((stream (flexi-streams:make-flexi-stream (hunchentoot:send-headers) :external-format :utf8))
@@ -222,8 +267,7 @@ function to be called on the socket.")
                          (enqueue-on-push-queue socket
                                                 #'(lambda (opened-socket)
                                                     (let ((s (opened-socket/stream opened-socket)))
-                                                      (write-string message s)
-                                                      (finish-output s))))
+                                                      (write-string message s))))
                          (when after-write
                            (funcall after-write)))))))
                
@@ -246,4 +290,4 @@ function to be called on the socket.")
                  (when after-empty
                    (funcall after-empty))))
 
-        (start-polling stream #'init #'remove-subscription #'after-send-empty)))))
+        (start-polling stream #'init #'remove-subscription #'after-send-empty disconnect-after-send)))))
