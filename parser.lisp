@@ -15,6 +15,7 @@ specified by *END-CODE*.")
 (defvar *variables-list* nil)
 (defvar *include-root-dir* nil)
 (defvar *current-stream* nil "The stream that the template output is written to.")
+(defvar *files* nil)
 
 (define-condition template-error (error)
   ((line          :type integer
@@ -314,6 +315,7 @@ or NIL if the information is not available."))
 
    ((include string)
     (let ((filename (merge-pathnames (pathname string) *include-root-dir*)))
+      (pushnew filename *files* :test #'equal)
       (with-open-file (file-in filename :if-does-not-exist nil)
         (unless file-in
           (signal-template-error (format nil "Failed to open include file \"~a\", file does not exist." filename)))
@@ -399,23 +401,25 @@ or NIL if the information is not available."))
     (inner-parse-stream-to-form stream)))
 
 (defun parse-stream-and-build-toplevel (stream binary encoding include-root-dir)
-  (let* ((*variables-list* nil)
+  (let* ((*files* nil)
+         (*variables-list* nil)
          (template-form (parse-stream-to-form stream binary encoding include-root-dir))
          (stream-sym (gensym "STREAM-"))
          (data-sym (gensym "DATA-")))
-    `(lambda (,data-sym ,stream-sym)
-       (let* ((current-content ,data-sym)
-              (*current-stream* ,(if binary
-                                     `(flexi-streams:make-flexi-stream ,stream-sym :external-format ,encoding)
-                                     stream-sym))
-              (current-output *current-stream*))
-         (declare (ignorable current-content))
-         (let ,(mapcar #'(lambda (symbol)
-                           (list symbol nil))
-                       *variables-list*)
-           (declare (ignorable ,@*variables-list*))
-           ,template-form
-           (finish-output *current-stream*))))))
+    (let ((result `(lambda (,data-sym ,stream-sym)
+                     (let* ((current-content ,data-sym)
+                            (*current-stream* ,(if binary
+                                                   `(flexi-streams:make-flexi-stream ,stream-sym :external-format ,encoding)
+                                                   stream-sym))
+                            (current-output *current-stream*))
+                       (declare (ignorable current-content))
+                       (let ,(mapcar #'(lambda (symbol)
+                                         (list symbol nil))
+                                     *variables-list*)
+                         (declare (ignorable ,@*variables-list*))
+                         ,template-form
+                         (finish-output *current-stream*))))))
+      (list result *files*))))
 
 (defun parse-template (stream &key binary (encoding :utf-8) include-root-dir)
   "Parses and compiles the template definition given as STREAM. If
@@ -432,9 +436,10 @@ The return value is a function that takes two arguments, DATA and OUTPUT.
 DATA is the data that will be used by the template, and OUTPUT is the
 output stream to which the result should be written."
   (let* ((name (gensym))
-         (code-form (parse-stream-and-build-toplevel stream binary encoding include-root-dir)))
+         (result (parse-stream-and-build-toplevel stream binary encoding include-root-dir))
+         (code-form (first result)))
     (compile name code-form)
-    (symbol-function name)))
+    (list (symbol-function name) (second result))))
 
 (defun debug-parser (s &optional binary)
   (with-input-from-string (stream s)
