@@ -44,7 +44,7 @@ file have been changed")
      finally (return t)))
 
 (defun reparse-file (pathname binary encoding include-root-dir)
-  (log:info "Reparsing file: ~s" pathname)
+  (log:debug "Reparsing file: ~s" pathname)
   (destructuring-bind (parsed files)
       (parse-template-file pathname
                            :binary binary

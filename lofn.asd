@@ -13,7 +13,8 @@
                :containers
                :closer-mop
                :html5-notification
-               :trivial-timers)
+               :trivial-timers
+               :log4cl)
   :components ((:file "package")
                (:file "util")
                (:file "parser")
