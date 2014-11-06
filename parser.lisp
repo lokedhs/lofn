@@ -443,4 +443,4 @@ output stream to which the result should be written."
 
 (defun debug-parser (s &optional binary)
   (with-input-from-string (stream s)
-    (parse-stream-to-form stream binary :utf-8 nil)))
+    (parse-stream-and-build-toplevel stream binary :utf-8 nil)))
