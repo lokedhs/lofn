@@ -22,4 +22,5 @@
            #:remove-listener
            #:start-polling-with-sources
            #:blocking-queue
-           #:*default-include-root-dir*))
+           #:*default-include-root-dir*
+           #:case-method))

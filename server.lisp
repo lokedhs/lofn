@@ -150,6 +150,25 @@ written to."
                  params)
      ,@body))
 
+(defmacro case-method (&body cases)
+  (destructuring-bind (new-cases has-default-p)
+      (loop
+         with found = nil
+         for c in cases
+         unless (and (listp c)
+                     (>= (length c) 2))
+         do (error "Incorrectly formatted clause: ~s" c)
+         when (eq (car c) t)
+         do (setq found t)
+         collect c into result-list
+         finally (return (list result-list found)))
+    (let ((method-sym (gensym)))
+      `(let ((,method-sym (hunchentoot:request-method*)))
+         (case ,method-sym
+           ,@new-cases
+           ,@(unless has-default-p
+                     (list `(t (error "Illegal method")))))))))
+
 (defun create-random-key ()
   (with-output-to-string (s)
     (dotimes (i (/ 128 4))
