@@ -107,6 +107,7 @@ written to."
                       :encoding :utf-8))
 
 (defun show-template-stream (file data)
+  (log:trace "Showing template file: ~a, data: ~s" file data)
   (with-hunchentoot-stream (out)
     (show-template out file data)))
 
