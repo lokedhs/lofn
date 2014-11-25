@@ -101,6 +101,7 @@ or NIL if the information is not available."))
                       ("/"            '|/|)
                       (":"            '|:|)
                       ("!"            '|!|)
+                      (":([a-zA-Z][a-zA-Z_0-9-]*)" (lambda (exprs) (list 'quoted-keyword (aref exprs 0))))
                       ("([a-zA-Z_][a-zA-Z_0-9-]*)" (lambda (exprs) (list 'symbol (aref exprs 0))))
                       ("\"((?:(?:\\\\\")|[^\"])*)\"" (lambda (exprs)
                                                        (list 'string (escape-string-slashes (aref exprs 0)))))
@@ -247,6 +248,7 @@ or NIL if the information is not available."))
 (short-define-parser *template-parser* ((:start-symbol document)
                                         (:terminals (template symbol string if end else while repeat number
                                                               for with deftemplate call include print var
+                                                              quoted-keyword
                                                               |,| |=| |(| |)| |@| |.| |/| |:| |!| |==|
                                                               |+| |-| |*|))
                                         (:precedence ((:right template))))
@@ -338,14 +340,15 @@ or NIL if the information is not available."))
    nil)
 
   (data
-   ((symbol)     `(cdr (assoc ,(string->symbol symbol "KEYWORD") current-content)))
-   ((|.|)        'current-content)
-   ((|,| symbol) (string->symbol symbol))
-   ((string)     string)
+   ((symbol)         `(cdr (assoc ,(string->symbol symbol "KEYWORD") current-content)))
+   ((quoted-keyword) (string->symbol quoted-keyword "KEYWORD"))
+   ((|.|)            'current-content)
+   ((|,| symbol)     (string->symbol symbol))
+   ((string)         string)
    (((|/| v1) interned-symbol (|/| v3) expression)
-    `(funcall ',interned-symbol ,expression))
+    `(funcall '      ,interned-symbol ,expression))
    ((|!| expression) `(not ,expression))
-   ((number-expr) number-expr))
+   ((number-expr)    number-expr))
 
   (expression
    ((data) data)
