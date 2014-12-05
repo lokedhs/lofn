@@ -171,6 +171,9 @@ written to."
                                   `(,var (hunchentoot:parameter ,param)))
                                  ((eq type :integer)
                                   `(,var (parse-integer (hunchentoot:parameter ,param))))
+                                 ((eq type :integer-allow-null)
+                                  (let ((sym (gensym)))
+                                    `(,var (let ((,sym (hunchentoot:parameter ,param))) (if ,sym (parse-integer ,sym) nil)))))
                                  (t
                                   (error "Illegal type specifier: ~s" type)))))))
                  params)
