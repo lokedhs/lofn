@@ -166,7 +166,13 @@ written to."
                        (let ((param (if (and (listp v) (cadr v))
                                         (cadr v)
                                         (string-downcase (symbol-name var)))))
-                         `(,var (hunchentoot:parameter ,param)))))
+                         (let ((type (if (listp v) (third v) nil)))
+                           (cond ((or (null type) (eq type :string))
+                                  `(,var (hunchentoot:parameter ,param)))
+                                 ((eq type :integer)
+                                  `(,var (parse-integer (hunchentoot:parameter ,param))))
+                                 (t
+                                  (error "Illegal type specifier: ~s" type)))))))
                  params)
      ,@body))
 
