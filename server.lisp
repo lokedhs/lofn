@@ -179,6 +179,20 @@ written to."
                  params)
      ,@body))
 
+(defmacro with-checked-parameters ((&rest params) &body body)
+  `(let ,(loop
+            for param-spec in params
+            collect (destructuring-bind (sym &key name required (type :string)) param-spec
+                      (let ((name (or name (string-downcase (symbol-name sym))))
+                            (value-sym (gensym)))
+                        `(,sym (let ((,value-sym (hunchentoot:parameter ,name)))
+                                 ,@(if required `((unless ,value-sym
+                                                    (error "Missing value for: ~s" ,name))))
+                                 ,(ecase type
+                                         (:string value-sym)
+                                         (:integer `(parse-integer ,value-sym))))))))
+     ,@body))
+
 (defun create-random-key ()
   (with-output-to-string (s)
     (dotimes (i (/ 128 4))

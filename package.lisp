@@ -23,4 +23,5 @@
            #:start-polling-with-sources
            #:blocking-queue
            #:*default-include-root-dir*
-           #:case-method))
+           #:case-method
+           #:with-checked-parameters))
