@@ -190,7 +190,8 @@ written to."
                         `(,sym (let ((,value-sym (hunchentoot:parameter ,name)))
                                  ,@(if required `((unless ,value-sym
                                                     (error "Missing value for: ~s" ,name))))
-                                 ,@(if trimmed `((setq ,value-sym (string-trim +BLANK-CHARS+ ,value-sym))))
+                                 ,@(if trimmed `((when ,value-sym
+                                                   (setq ,value-sym (string-trim +BLANK-CHARS+ ,value-sym)))))
                                  ,@(if (not allow-blank) `((when (string= ,value-sym "")
                                                              (error "Value for ~s is empty" ,name))))
                                  ,(ecase type
