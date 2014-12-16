@@ -179,15 +179,20 @@ written to."
                  params)
      ,@body))
 
+(alexandria:define-constant +BLANK-CHARS+ (map 'string #'identity '(#\Space #\Newline #\Return)) :test 'equal)
+
 (defmacro with-checked-parameters ((&rest params) &body body)
   `(let ,(loop
             for param-spec in params
-            collect (destructuring-bind (sym &key name required (type :string)) param-spec
+            collect (destructuring-bind (sym &key name required (type :string) (allow-blank t) trimmed) param-spec
                       (let ((name (or name (string-downcase (symbol-name sym))))
                             (value-sym (gensym)))
                         `(,sym (let ((,value-sym (hunchentoot:parameter ,name)))
                                  ,@(if required `((unless ,value-sym
                                                     (error "Missing value for: ~s" ,name))))
+                                 ,@(if trimmed `((setq ,value-sym (string-trim +BLANK-CHARS+ ,value-sym))))
+                                 ,@(if (not allow-blank) `((when (string= ,value-sym "")
+                                                             (error "Value for ~s is empty" ,name))))
                                  ,(ecase type
                                          (:string value-sym)
                                          (:integer `(parse-integer ,value-sym))))))))
