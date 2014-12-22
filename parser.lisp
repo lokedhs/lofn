@@ -388,7 +388,9 @@ or NIL if the information is not available."))
         (let ((form (yacc:parse-with-lexer (make-stream-template-lexer stream) *template-parser*)))
           `(labels ,(loop
                        for value being each hash-value in *subtemplate-list*
-                       collect `(,(car value) (current-content) ,@(cdr value)))
+                       collect `(,(car value) (current-content)
+                                  (declare (ignorable current-content))
+                                  ,@(cdr value)))
              ,form))
       (yacc:yacc-parse-error (condition) (signal-template-error
                                           (format nil "Parse error: terminal=~s value=~s expected=~s"
