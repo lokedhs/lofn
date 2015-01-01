@@ -90,7 +90,7 @@ form \(NAME REGEX)")
      ,@(when docstring (list docstring))
      ,@body))
 
-(defmacro define-handler-fn ((name url regex (&rest bind-vars)) &body body)
+(defmacro define-handler-fn-internal ((name url regex bind-vars) &body body)
   (check-type name symbol)
   (check-type url string)
   (check-type regex (or null (eql t)))
@@ -103,6 +103,10 @@ form \(NAME REGEX)")
           `(setq *regex-handlers* (cons (list ',name (cl-ppcre:create-scanner (concatenate 'string "^" ,url "$")))
                                         (remove ',name *regex-handlers* :key #'car)))
           `(setf (gethash ,url *url-handlers*) ',name))))
+
+(defmacro define-handler-fn ((name url regex (&rest bind-vars)) &body body)
+  `(define-handler-fn-internal (,name ,url ,regex ,bind-vars)
+     ,@body))
 
 (defun hunchentoot-stream-as-text (&key (content-type "text/html") (append-charset t))
   "Sends the appropriate headers to ensure that all data is sent back using
@@ -152,7 +156,7 @@ written to."
   (check-type bind-vars list)
   (multiple-value-bind (rem-forms declarations docstring)
       (alexandria:parse-body body :documentation t)
-    `(define-handler-fn (,name ,url ,regex ,bind-vars)
+    `(define-handler-fn-internal (,name ,url ,regex ,bind-vars)
        ,@(when docstring (list docstring))
        ,(if data-symbol
             `(process-json #'(lambda (,data-symbol) ,@declarations ,@rem-forms))
