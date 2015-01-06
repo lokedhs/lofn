@@ -175,7 +175,7 @@ function to be called on the socket.")
                 (dolist (socket s)
                   (handler-case
                       (usocket:socket-close socket)
-                    (error () (format t "Error closing socket: ~s~%" socket)))
+                    (error () (log:error "Error closing socket: ~s~%" socket)))
                   (let ((pair (find socket *active-sockets* :key #'opened-socket/socket)))
                     (setq *active-sockets* (delete pair *active-sockets*))
                     (alexandria:when-let ((callback (opened-socket/disconnect-callback pair)))
