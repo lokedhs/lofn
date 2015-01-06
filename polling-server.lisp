@@ -30,8 +30,6 @@ processed using polling."))
   (:documentation "Acceptor that can optionally use polling instead of
 one thread per connection."))
 
-(defparameter *out* *standard-output*)
-
 (defmethod hunchentoot:process-connection ((acceptor polling-server-acceptor) socket)
   (let ((result (block process                  
                   (handler-bind ((request-polling #'(lambda (condition)
