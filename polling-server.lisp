@@ -210,7 +210,7 @@ function to be called on the socket.")
                do (handler-case
                       (funcall callback socket)
                     (error (condition)
-                      (format *out* "Error pushing message: ~s~%" condition)
+                      (log:error "Error pushing message: ~s~%" condition)
                       (setf (opened-socket/discarded-p socket) t))))))))
 
 (defun enqueue-on-push-queue (socket callback)
