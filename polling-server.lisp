@@ -2,6 +2,8 @@
 
 (alexandria:define-constant +CRLF+ (format nil "~c~c" #\Return #\Newline) :test 'equal)
 
+(defvar *poll-loop-threads* 10)
+
 (define-condition request-polling ()
   ((init-fn               :type function
                           :initarg :init-fn
@@ -224,7 +226,7 @@ function to be called on the socket.")
 (defun start-poll-loop-thread ()
   (setq *poll-loop-thread* (bordeaux-threads:make-thread #'poll-loop-start :name "Poll loop"))
   (setq *push-queue-threads* (loop
-                               repeat 10
+                               repeat *pool-loop-threads*
                                for i from 0
                                collect (bordeaux-threads:make-thread #'push-queue-loop :name (format nil "Notification push queue: ~a" i))))
   (setq *timer-block-thread* (bordeaux-threads:make-thread #'timer-block-loop :name "Timer block loop")))
