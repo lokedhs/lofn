@@ -242,8 +242,8 @@ function to be called on the socket.")
 (defun start-poll-loop-thread ()
   (setq *poll-loop-thread* (bordeaux-threads:make-thread #'poll-loop-start :name "Poll loop"))
   (setq *push-queue-threads* (loop
-                               repeat *push-queue-threads*
                                for i from 0
+                               repeat *push-queue-threads*
                                collect (bordeaux-threads:make-thread #'push-queue-loop-start
                                                                      :name (format nil "Notification push queue: ~a" i))))
   (setq *timer-block-thread* (bordeaux-threads:make-thread #'timer-block-loop :name "Timer block loop")))
