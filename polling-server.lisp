@@ -100,6 +100,7 @@ function to be called on the socket.")
         (trivial-timers:make-timer #'(lambda ()
                                        (push-ping-message obj)
                                        (let ((after-empty-callback (opened-socket/after-empty-callback obj)))
+                                         (log:trace "After ping, callback: ~s" after-empty-callback)
                                          (when after-empty-callback
                                            (funcall after-empty-callback obj))))
                                    :name "Ping timer"
@@ -273,6 +274,7 @@ function to be called on the socket.")
                  (dolist (e html5-notification::entries)
                    (let ((entry e))
                      (html5-notification:add-listener entry #'(lambda () (push-update socket e)))))
+                 (log:trace "Scheduling timer for socket: ~s" socket)
                  (trivial-timers:schedule-timer (opened-socket/timer socket) 30
                                                 :repeat-interval 30))
 
@@ -285,6 +287,7 @@ function to be called on the socket.")
 
                (after-send-empty (socket)
                  (declare (ignore socket))
+                 (log:trace "after-send-empty called, callback: ~s" after-empty)
                  (when after-empty
                    (funcall after-empty))))
 
