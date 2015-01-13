@@ -24,4 +24,5 @@
            #:blocking-queue
            #:*default-include-root-dir*
            #:case-method
-           #:with-checked-parameters))
+           #:with-checked-parameters
+           #:*push-queue-threads*))

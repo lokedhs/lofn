@@ -2,6 +2,8 @@
 
 (alexandria:define-constant +CRLF+ (format nil "~c~c" #\Return #\Newline) :test 'equal)
 
+(defvar *push-queue-threads* 10)
+
 (define-condition request-polling ()
   ((init-fn               :type function
                           :initarg :init-fn
@@ -181,7 +183,12 @@ function to be called on the socket.")
                       (funcall callback pair))))))))))
 
 (defun poll-loop-start ()
-  (poll-loop))
+  (loop
+     do (block loop-retry
+          (handler-bind ((error (lambda (condition)
+                                  (log:error "Error when processing poll request: ~s" condition)
+                                  (return-from loop-retry nil))))
+            (poll-loop)))))
 
 (defun push-queue-loop ()
   (loop
@@ -212,6 +219,14 @@ function to be called on the socket.")
                       (log:error "Error pushing message: ~s~%" condition)
                       (setf (opened-socket/discarded-p socket) t))))))))
 
+(defun push-queue-loop-start ()
+  (loop
+     do (block loop-retry
+          (handler-bind ((error (lambda (condition)
+                                  (log:error "Error when processing push request: ~s" condition)
+                                  (return-from loop-retry nil))))
+            (push-queue-loop)))))
+
 (defun enqueue-on-push-queue (socket callback)
   (check-type socket opened-socket)
   (check-type callback function)
@@ -225,9 +240,10 @@ function to be called on the socket.")
 (defun start-poll-loop-thread ()
   (setq *poll-loop-thread* (bordeaux-threads:make-thread #'poll-loop-start :name "Poll loop"))
   (setq *push-queue-threads* (loop
-                               repeat 10
+                               repeat *push-queue-threads*
                                for i from 0
-                               collect (bordeaux-threads:make-thread #'push-queue-loop :name (format nil "Notification push queue: ~a" i))))
+                               collect (bordeaux-threads:make-thread #'push-queue-loop-start
+                                                                     :name (format nil "Notification push queue: ~a" i))))
   (setq *timer-block-thread* (bordeaux-threads:make-thread #'timer-block-loop :name "Timer block loop")))
 
 (defun push-ping-message (opened-socket)
