@@ -199,25 +199,27 @@ function to be called on the socket.")
               (setq should-send t)
               (setq v t)))
           (when should-send
-            (loop
-               for first = t then nil
-               for callback = (dhs-sequences:with-atomic-variable (v (opened-socket/in-progress-p socket))
-                                (let ((value (dhs-sequences:queue-pop (opened-socket/queue socket) :if-empty nil)))
-                                  (or value
-                                      (progn
-                                        (unless first
-                                          (finish-output (opened-socket/stream socket)))
-                                        (when (opened-socket/disconnect-after-send socket)
-                                          (setf (opened-socket/discarded-p socket) t)
-                                          (notify-poll-loop-updates))
-                                        (setf v nil)
-                                        nil))))
-               while callback
-               do (handler-case
-                      (funcall callback socket)
-                    (error (condition)
-                      (log:error "Error pushing message: ~s~%" condition)
-                      (setf (opened-socket/discarded-p socket) t))))))))
+            (unwind-protect
+                 (loop
+                    for first = t then nil
+                    for callback = (dhs-sequences:with-atomic-variable (v (opened-socket/in-progress-p socket))
+                                     (let ((value (dhs-sequences:queue-pop (opened-socket/queue socket) :if-empty nil)))
+                                       (or value
+                                           (progn
+                                             (unless first
+                                               (finish-output (opened-socket/stream socket)))
+                                             (when (opened-socket/disconnect-after-send socket)
+                                               (setf (opened-socket/discarded-p socket) t)
+                                               (notify-poll-loop-updates))
+                                             nil))))
+                    while callback
+                    do (handler-case
+                           (funcall callback socket)
+                         (error (condition)
+                           (log:error "Error pushing message: ~s~%" condition)
+                           (setf (opened-socket/discarded-p socket) t))))
+              (dhs-sequences:with-atomic-variable (v (opened-socket/in-progress-p socket))
+                (setf v nil)))))))
 
 (defun push-queue-loop-start ()
   (loop
