@@ -200,7 +200,8 @@ written to."
                                                              (error "Value for ~s is empty" ,name))))
                                  ,(ecase type
                                          (:string value-sym)
-                                         (:integer `(parse-integer ,value-sym))))))))
+                                         (:integer `(parse-integer ,value-sym))
+                                         (:boolean `(equal ,value-sym "1"))))))))
      ,@body))
 
 (defun create-random-key ()
