@@ -277,6 +277,7 @@ function to be called on the socket.")
     (with-slots (html5-notification::entries) subscription
       (labels ((push-update (socket e)
                  (multiple-value-bind (prefixed new-id) (html5-notification:updated-objects-from-entry e)
+                   (log:trace "push: prefixed=~s new-id=~s" prefixed new-id)
                    (html5-notification:with-locked-instance (subscription)
                      (setf (html5-notification:subscription-entry-last-id e) new-id)
                      (when prefixed
