@@ -267,7 +267,9 @@ function to be called on the socket.")
           :stream stream
           :disconnect-after-send disconnect-after-send))
 
-(defun start-polling-with-sources (sources &key after-write after-disconnect after-empty disconnect-after-send)
+(defun start-polling-with-sources (sources &key
+                                             (delay-time 30)
+                                             after-write after-disconnect after-empty disconnect-after-send)
   (setf (hunchentoot:header-out :cache-control) "no-cache")
   (setf (hunchentoot:content-type*) "text/event-stream")
   (let ((stream (flexi-streams:make-flexi-stream (hunchentoot:send-headers) :external-format :utf8))
@@ -294,8 +296,8 @@ function to be called on the socket.")
                    (let ((entry e))
                      (html5-notification:add-listener entry #'(lambda () (push-update socket e)))))
                  (log:trace "Scheduling timer for socket: ~s" socket)
-                 (trivial-timers:schedule-timer (opened-socket/timer socket) 30
-                                                :repeat-interval 30))
+                 (trivial-timers:schedule-timer (opened-socket/timer socket) delay-time
+                                                :repeat-interval delay-time))
 
                (remove-subscription (socket)
                  (trivial-timers:unschedule-timer (opened-socket/timer socket))
