@@ -134,13 +134,25 @@ written to."
   (with-hunchentoot-stream (out)
     (show-template out file data)))
 
+(defun json-control-characters-p (string)
+  (check-type string simple-string)
+  (loop
+     for ch across string
+     for code = (char-code ch)
+     when (or (<= 0 code #x1f)
+              (<= #x7f code #x9f))
+     return t
+     finally (return nil)))
+
 (defun process-json (fn)
   (check-type fn function)
-  (let* ((json-text (hunchentoot:raw-post-data :force-text t))
-         (data (st-json:read-json-from-string json-text))
-         (result (funcall fn data)))
-    (with-hunchentoot-stream (out "application/json")
-      (st-json:write-json result out))))
+  (let ((json-text (hunchentoot:raw-post-data :force-text t)))
+    (when (json-control-characters-p json-text)
+      (error "JSON input contains control characters"))
+    (let* ((data (st-json:read-json-from-string json-text))
+           (result (funcall fn data)))
+      (with-hunchentoot-stream (out "application/json")
+        (st-json:write-json result out)))))
 
 (defun process-json-no-data (fn)
   (check-type fn function)
