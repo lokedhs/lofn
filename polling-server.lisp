@@ -278,9 +278,9 @@ function to be called on the socket.")
                                      :http-event (hunchentoot:header-in* :last-event-id))))
     (with-slots (html5-notification::entries) subscription
       (labels ((push-update (socket e)
-                 (multiple-value-bind (prefixed new-id) (html5-notification:updated-objects-from-entry e)
-                   (log:trace "push: prefixed=~s new-id=~s" prefixed new-id)
-                   (html5-notification:with-locked-instance (subscription)
+                 (html5-notification:with-locked-instance (subscription)
+                   (multiple-value-bind (prefixed new-id) (html5-notification:updated-objects-from-entry e)
+                     (log:trace "push: prefixed=~s new-id=~s" prefixed new-id)
                      (setf (html5-notification:subscription-entry-last-id e) new-id)
                      (when prefixed
                        (let ((message (html5-notification:format-update-message-text subscription prefixed)))
