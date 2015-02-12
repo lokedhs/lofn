@@ -302,9 +302,9 @@ function to be called on the socket.")
                (remove-subscription (socket)
                  (trivial-timers:unschedule-timer (opened-socket/timer socket))
                  (dolist (e html5-notification::entries)
-                   (html5-notification:remove-listener e)
-                   (when after-disconnect
-                     (funcall after-disconnect))))
+                   (html5-notification:remove-listener e))
+                 (when after-disconnect
+                   (funcall after-disconnect)))
 
                (after-send-empty (socket)
                  (declare (ignore socket))
