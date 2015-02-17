@@ -16,6 +16,7 @@ specified by *END-CODE*.")
 (defvar *include-root-dir* nil)
 (defvar *current-stream* nil "The stream that the template output is written to.")
 (defvar *files* nil)
+(defvar *index-values* nil)
 
 (define-condition template-error (error)
   ((line          :type integer
@@ -87,6 +88,8 @@ or NIL if the information is not available."))
                       ("call"         'call)
                       ("include"      'include)
                       ("var"          'var)
+                      ("includeindex" 'json-index)
+                      ("index"        'json-index-value)
                       (","            '|,|)
                       ("="            '|=|)
                       ("=="           '|==|)
@@ -248,7 +251,7 @@ or NIL if the information is not available."))
 (short-define-parser *template-parser* ((:start-symbol document)
                                         (:terminals (template symbol string if end else while repeat number
                                                               for with deftemplate call include print var
-                                                              quoted-keyword
+                                                              quoted-keyword json-index json-index-value
                                                               |,| |=| |(| |)| |@| |.| |/| |:| |!| |==|
                                                               |+| |-| |*|))
                                         (:precedence ((:right template))))
@@ -328,6 +331,23 @@ or NIL if the information is not available."))
       (pushnew symbol *variables-list*)
       `(setq ,symbol ,expression)))
 
+   ((json-index string)
+    (let ((filename (merge-pathnames (pathname string) *include-root-dir*)))
+      (pushnew filename *files* :test #'equal)
+      (with-open-file (file-in filename :if-does-not-exist nil)
+        (unless file-in
+          (signal-template-error (format nil "Failed to open index file \"~a\", file does not exist." filename)))
+        (let ((data (st-json:read-json file-in)))
+          (st-json:mapjso (lambda (key value)
+                            (unless (stringp key)
+                              (signal-template-error (format nil "In index file \"~a\", key ~s is not a string."
+                                                             filename key)))
+                            (unless (stringp value)
+                              (signal-template-error (format nil "In index file \"~a\", value for key \"~a\" is not a string."
+                                                             filename key)))
+                            (setf (gethash (format nil "~a.~a" string key) *index-values*) value))
+                          data)))))
+
    ) ; end of DOCUMENT-NODE
 
   (else-statement
@@ -348,7 +368,13 @@ or NIL if the information is not available."))
    (((|/| v1) interned-symbol (|/| v3) expression)
     `(funcall '      ,interned-symbol ,expression))
    ((|!| expression) `(not ,expression))
-   ((number-expr)    number-expr))
+   ((number-expr)    number-expr)
+   ((json-index-value (string key))
+    (multiple-value-bind (value exists-p) (gethash key *index-values*)
+      (unless exists-p
+        (defparameter *palle* *index-values*)
+        (signal-template-error (format nil "Attempt to look up missing index: \"~a\"" key)))
+      value)))
 
   (expression
    ((data) data)
@@ -408,6 +434,7 @@ or NIL if the information is not available."))
 (defun parse-stream-and-build-toplevel (stream binary encoding include-root-dir)
   (let* ((*files* nil)
          (*variables-list* nil)
+         (*index-values* (make-hash-table :test #'equal))
          (template-form (parse-stream-to-form stream binary encoding include-root-dir))
          (stream-sym (gensym "STREAM-"))
          (data-sym (gensym "DATA-")))
