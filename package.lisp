@@ -25,4 +25,5 @@
            #:*default-include-root-dir*
            #:case-method
            #:with-checked-parameters
-           #:*push-queue-threads*))
+           #:*push-queue-threads*
+           #:show-template))
