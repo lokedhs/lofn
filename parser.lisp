@@ -376,7 +376,6 @@ or NIL if the information is not available."))
    ((json-index-value (string key))
     (multiple-value-bind (value exists-p) (gethash key *index-values*)
       (unless exists-p
-        (defparameter *palle* *index-values*)
         (signal-template-error (format nil "Attempt to look up missing index: \"~a\"" key)))
       value)))
 
