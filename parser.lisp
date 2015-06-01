@@ -375,9 +375,7 @@ or NIL if the information is not available."))
    ((number-expr)    number-expr)
    ((json-index-value (string key))
     (multiple-value-bind (value exists-p) (gethash key *index-values*)
-      (unless exists-p
-        (signal-template-error (format nil "Attempt to look up missing index: \"~a\"" key)))
-      value)))
+      (if exists-p value key))))
 
   (expression
    ((data) data)
