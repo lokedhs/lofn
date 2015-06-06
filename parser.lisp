@@ -325,7 +325,7 @@ or NIL if the information is not available."))
    ((include string)
     (let ((filename (merge-pathnames (pathname string) *include-root-dir*)))
       (pushnew filename *files* :test #'equal)
-      (with-open-file (file-in filename :if-does-not-exist nil)
+      (with-open-file (file-in filename :if-does-not-exist nil external-format :utf-8)
         (unless file-in
           (signal-template-error (format nil "Failed to open include file \"~a\", file does not exist." filename)))
         (inner-parse-stream-to-form file-in))))
