@@ -375,10 +375,7 @@ or NIL if the information is not available."))
    ((number-expr)    number-expr)
    ((json-index-value (string key))
     (multiple-value-bind (value exists-p) (gethash key *index-values*)
-      (unless exists-p
-        (defparameter *palle* *index-values*)
-        (signal-template-error (format nil "Attempt to look up missing index: \"~a\"" key)))
-      value)))
+      (if exists-p value key))))
 
   (expression
    ((data) data)
@@ -429,6 +426,9 @@ or NIL if the information is not available."))
                        collect `(,(car value) (current-content)
                                   (declare (ignorable current-content))
                                   ,@(cdr value)))
+             ,@(loop
+                  for value being each hash-value in *subtemplate-list*
+                  collect `(declare (ignorable (function ,(car value)))))
              ,form))
       (yacc:yacc-parse-error (condition) (signal-template-error
                                           (format nil "Parse error: terminal=~s value=~s expected=~s"
