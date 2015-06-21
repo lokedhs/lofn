@@ -26,4 +26,6 @@
            #:case-method
            #:with-checked-parameters
            #:*push-queue-threads*
-           #:show-template))
+           #:show-template
+           #:start-poll
+           #:request-polling))

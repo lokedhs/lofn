@@ -4,26 +4,26 @@
 
 (defvar *num-push-queue-threads* 10)
 
-(define-condition request-polling ()
+(define-condition request-polling2 ()
   ((init-fn               :type function
                           :initarg :init-fn
                           :initform nil
-                          :reader request-polling/init-fn)
+                          :reader request-polling2/init-fn)
    (disconnect-callback   :type function
                           :initarg :disconnect-callback
                           :initform nil
-                          :reader request-polling/disconnect-callback)
+                          :reader request-polling2/disconnect-callback)
    (after-empty-callback  :type function
                           :initarg :after-empty-callback
                           :initform nil
-                          :reader request-polling/after-empty-callback)
+                          :reader request-polling2/after-empty-callback)
    (stream                :type stream
                           :initarg :stream
-                          :reader request-polling/stream)
+                          :reader request-polling2/stream)
    (disconnect-after-send :type t
                           :initarg :disconnect-after-send
                           :initform nil
-                          :reader request-polling/disconnect-after-send))
+                          :reader request-polling2/disconnect-after-send))
   (:documentation "Condition that is raised when the request should be
 processed using polling."))
 
@@ -34,13 +34,13 @@ one thread per connection."))
 
 (defmethod hunchentoot:process-connection ((acceptor polling-server-acceptor) socket)
   (let ((result (block process                  
-                  (handler-bind ((request-polling #'(lambda (condition)
+                  (handler-bind ((request-polling2 #'(lambda (condition)
                                                       (hunchentoot:detach-socket acceptor)
-                                                      (return-from process (list (request-polling/stream condition)
-                                                                                 (request-polling/init-fn condition)
-                                                                                 (request-polling/disconnect-callback condition)
-                                                                                 (request-polling/after-empty-callback condition)
-                                                                                 (request-polling/disconnect-after-send condition)
+                                                      (return-from process (list (request-polling2/stream condition)
+                                                                                 (request-polling2/init-fn condition)
+                                                                                 (request-polling2/disconnect-callback condition)
+                                                                                 (request-polling2/after-empty-callback condition)
+                                                                                 (request-polling2/disconnect-after-send condition)
                                                                                  hunchentoot:*session*)))))
                     (call-next-method)
                     nil))))
@@ -260,7 +260,7 @@ function to be called on the socket.")
 (defun start-polling (stream init-fn disconnect-callback after-empty-callback disconnect-after-send)
   (check-type init-fn function)
   (check-type disconnect-callback function)
-  (signal 'request-polling
+  (signal 'request-polling2
           :init-fn init-fn
           :disconnect-callback disconnect-callback
           :after-empty-callback after-empty-callback
@@ -313,3 +313,26 @@ function to be called on the socket.")
                    (funcall after-empty))))
 
         (start-polling stream #'init #'remove-subscription #'after-send-empty disconnect-after-send)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Simple polling handler
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-condition request-polling ()
+  ()
+  (:documentation "Condition that can be raised to break out of the
+hunchentoot-managed acceptor."))
+
+(defgeneric start-poll (condition socket)
+  (:method ((condition request-polling) socket)
+    (error "The condition object must implement a START-POLL method")))
+
+(defmethod hunchentoot:process-connection ((acceptor server-acceptor) socket)
+  (let ((result (block process
+                  (handler-bind ((request-polling (lambda (condition)
+                                                    (hunchentoot:detach-socket acceptor)
+                                                    (return-from process condition))))
+                    (call-next-method)
+                    nil))))
+    (when result
+      (start-poll result socket))))
