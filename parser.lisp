@@ -108,6 +108,7 @@ or NIL if the information is not available."))
                       ("/"            '|/|)
                       (":"            '|:|)
                       ("!"            '|!|)
+                      ("\\$"          '|$|)
                       (":([a-zA-Z][a-zA-Z_0-9-]*)" (lambda (exprs) (list 'quoted-keyword (aref exprs 0))))
                       ("([a-zA-Z_][a-zA-Z_0-9-]*)" (lambda (exprs) (list 'symbol (aref exprs 0))))
                       ("\"((?:(?:\\\\\")|[^\"])*)\"" (lambda (exprs)
@@ -257,7 +258,7 @@ or NIL if the information is not available."))
                                                               for with deftemplate call include print var
                                                               quoted-keyword json-index json-index-value
                                                               |,| |=| |(| |)| |@| |.| |/| |:| |!| |==|
-                                                              |<| |>| |<=| |>=| |+| |-| |*|))
+                                                              |<| |>| |<=| |>=| |+| |-| |*| |$|))
                                         (:precedence ((:right template))))
                      
   (document
@@ -363,6 +364,10 @@ or NIL if the information is not available."))
    ((with symbol) symbol)
    nil)
 
+  (json-index-default-marker
+   ((|$| string) string)
+   nil)
+
   (data
    ((symbol)         `(cdr (assoc ,(string->symbol symbol "KEYWORD") current-content)))
    ((quoted-keyword) (string->symbol quoted-keyword "KEYWORD"))
@@ -373,9 +378,9 @@ or NIL if the information is not available."))
     `(funcall '      ,interned-symbol ,expression))
    ((|!| expression) `(not ,expression))
    ((number-expr)    number-expr)
-   ((json-index-value (string key))
+   ((json-index-value (string key) json-index-default-marker)
     (multiple-value-bind (value exists-p) (gethash key *index-values*)
-      (if exists-p value key))))
+      (if exists-p value (or json-index-default-marker key)))))
 
   (expression
    ((data) data)
