@@ -164,8 +164,10 @@ written to."
                  ;; ELSE: Illegal request method
                  (progn
                    (setf (hunchentoot:return-code*) hunchentoot:+http-method-not-allowed+)
-                   (st-json:jso "result" "error"
-                                "message" "wrong request method")))
+                   (let ((result (st-json:jso "result" "error"
+                                              "message" "wrong request method")))
+                     (with-hunchentoot-stream (out "application/json")
+                       (st-json:write-json result out)))))
             `(process-json-no-data #'(lambda () ,@declarations ,@rem-forms))))))
 
 (defmacro with-parameters ((&rest params) &body body)
