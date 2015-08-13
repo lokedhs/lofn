@@ -163,6 +163,10 @@ written to."
                  (process-json #'(lambda (,data-symbol) ,@declarations ,@rem-forms))
                  ;; ELSE: Illegal request method
                  (progn
+                   (log:warn "Wrong request method for url: ~s. Request: ~s. From: ~s"
+                             (hunchentoot:request-uri*)
+                             (hunchentoot:request-method*)
+                             (hunchentoot:remote-addr hunchentoot:*request*))
                    (setf (hunchentoot:return-code*) hunchentoot:+http-method-not-allowed+)
                    (let ((result (st-json:jso "result" "error"
                                               "message" "wrong request method")))
