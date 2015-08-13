@@ -159,7 +159,13 @@ written to."
     `(define-handler-fn-internal (,name ,url ,regex ,bind-vars)
        ,@(when docstring (list docstring))
        ,(if data-symbol
-            `(process-json #'(lambda (,data-symbol) ,@declarations ,@rem-forms))
+            `(if (eq (hunchentoot:request-method*) :post)
+                 (process-json #'(lambda (,data-symbol) ,@declarations ,@rem-forms))
+                 ;; ELSE: Illegal request method
+                 (progn
+                   (setf (hunchentoot:return-code*) hunchentoot:+http-method-not-allowed+)
+                   (st-json:jso "result" "error"
+                                "message" "wrong request method")))
             `(process-json-no-data #'(lambda () ,@declarations ,@rem-forms))))))
 
 (defmacro with-parameters ((&rest params) &body body)
