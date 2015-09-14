@@ -90,6 +90,8 @@ or NIL if the information is not available."))
                       ("var"          'var)
                       ("includeindex" 'json-index)
                       ("index"        'json-index-value)
+                      ("and"          'and)
+                      ("or"           'or)
                       (","            '|,|)
                       ("="            '|=|)
                       ("=="           '|==|)
@@ -256,6 +258,7 @@ or NIL if the information is not available."))
 (short-define-parser *template-parser* ((:start-symbol document)
                                         (:terminals (template symbol string if end else while repeat number
                                                               for with deftemplate call include print var
+                                                              and or
                                                               quoted-keyword json-index json-index-value
                                                               |,| |=| |(| |)| |@| |.| |/| |:| |!| |==|
                                                               |<| |>| |<=| |>=| |+| |-| |*| |$|))
@@ -389,6 +392,10 @@ or NIL if the information is not available."))
   (wrap-expression
    ((expression)
     expression)
+   (((expression e1) and (expression e2))
+    `(and ,e1 ,e2))
+   (((expression e1) or (expression e2))
+    `(or ,e1 ,e2))
    (((expression e1) |==| (expression e2))
     `(equal ,e1 ,e2))
    (((expression e1) |<| (expression e2))
