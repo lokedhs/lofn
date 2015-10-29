@@ -72,7 +72,7 @@ output to STREAM."
                                                   (not (files-up-to-date-p cached))))
                                          ;; The file needs to be reparsed
                                          (reparse-file pathname binary encoding include-root-dir)
-                                         ;; The cached file is up to date                                         
+                                         ;; The cached file is up to date
                                          cached))
                data stream))))
 
