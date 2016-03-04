@@ -1,6 +1,6 @@
 # Lofn --- Web framework and template engine
 
-## Abot the template engine
+## About the template engine
 
 The engine works by compiling a source file into a Lisp form an
 compiling it. This is done using the function `PARSE-TEMPLATE`. This
