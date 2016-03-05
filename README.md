@@ -100,3 +100,27 @@ A conditional is issued using the `if` keyword:
   <% end %>
 <% end %>
 ```
+
+### Variables
+
+Variables are declared using the `var` keyword:
+
+```
+var foo = "value from string"
+var bar = lookup-by-keyword
+```
+
+The variable can be referenced by prefixing it by a comma: `,foo`.
+Thus, if you want to output the value of a variable, use the
+following: `#,foo`.
+
+Variables are useful when looping through data and you need to refer
+to a value on a higher level. For example:
+
+```
+<% var title = title %>
+<ul>
+  <% for values %>
+    <li><% #,title %>: <% #value %></li>
+  <% end %>
+</ul>
