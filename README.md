@@ -14,20 +14,22 @@ at run time.
 ## How to call the template engine
 
 Normally the `PARSE-TEMPLATE` function is not called directly.
-Instead, the function `SHOW-TEMPLATE` is used. This function accepts a
-template file and arguments. This function caches the compiled
-templates and recompiles them if necessary if the source files have
-changed.
+Instead, the function `EXEC-TEMPLATE-FILE` is used. This function
+accepts a template file and arguments. This function caches the
+compiled templates and recompiles them if necessary if the source
+files have changed.
 
 Here is a simple example of a template invocation:
 
 ```
 (with-output-to-string (stream)
-  (show-template stream "main.tmpl" '((:name . "Foo")
-                                      (:values . (((:val0 . "A")
-                                                   (:val1 . "B"))
-                                                  ((:val0 . "A0")
-                                                   (:val1 . "B0")))))))
+  (exec-template-file "main.tmpl"
+                      '((:name . "Foo")
+                        (:values . (((:val0 . "A")
+                                     (:val1 . "B"))
+                                    ((:val0 . "A0")
+                                     (:val1 . "B0")))))
+                      stream))
 ```
 
 This will apply the argument list to the template `main.tmpl` and
