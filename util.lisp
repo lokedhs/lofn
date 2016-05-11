@@ -28,8 +28,7 @@
         ;; otherwise, process the string
         (loop with len = (length string)
            for old-pos = 0 then (1+ pos)
-           for pos = first-pos
-           then (position-if test string :start old-pos)
+           for pos = first-pos then (position-if test string :start old-pos)
            ;; now the characters from OLD-POS to (excluding) POS
            ;; don't have to be escaped while the next character has to
            for char = (and pos (char string pos))
