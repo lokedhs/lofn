@@ -48,13 +48,13 @@ one thread per connection."))
       (destructuring-bind (stream init-fn disconnect-callback after-empty-callback disconnect-after-send session) result
         (register-polling-socket socket stream init-fn disconnect-callback after-empty-callback disconnect-after-send session)))))
 
-(defvar *master-poll-waiting-sockets* (dhs-sequences:make-blocking-queue))
+(defvar *master-poll-waiting-sockets* (receptacle:make-blocking-queue))
 (defvar *active-sockets* nil)
 (defvar *poll-loop-thread* nil)
 (defvar *timer-block-thread* nil
   "The thread that is responsible for processing timeout callbacks.")
 
-(defvar *push-queue* (dhs-sequences:make-blocking-queue)
+(defvar *push-queue* (receptacle:make-blocking-queue)
   "Queue containing notifications that data needs to be pushed to a
 socket. Each element is a cons where car is the socket and cdr is a
 function to be called on the socket.")
@@ -82,11 +82,11 @@ function to be called on the socket.")
    (session                :type (or null hunchentoot:session)
                            :initarg :session
                            :reader opened-socket/session)
-   (queue                  :type dhs-sequences:blocking-queue
-                           :initform (dhs-sequences:make-blocking-queue)
+   (queue                  :type receptacle:blocking-queue
+                           :initform (receptacle:make-blocking-queue)
                            :reader opened-socket/queue)
-   (in-progress-p          :type dhs-sequences:atomic-variable
-                           :initform (dhs-sequences:make-atomic-variable nil)
+   (in-progress-p          :type receptacle:atomic-variable
+                           :initform (receptacle:make-atomic-variable nil)
                            :reader opened-socket/in-progress-p)
    (disconnect-after-send  :type t
                            :initarg :disconnect-after-send
@@ -121,31 +121,31 @@ function to be called on the socket.")
                                       :disconnect-after-send disconnect-after-send)))
     (when init-fn
       (funcall init-fn opened-socket))
-    (dhs-sequences:queue-push *master-poll-waiting-sockets* opened-socket)
+    (receptacle:queue-push *master-poll-waiting-sockets* opened-socket)
     (notify-poll-loop-updates)))
 
 (defun opened-socket/close (socket)
   (usocket:socket-close (opened-socket/socket socket)))
 
-(defvar *poll-loop-wait-flag* (dhs-sequences:make-atomic-variable nil))
+(defvar *poll-loop-wait-flag* (receptacle:make-atomic-variable nil))
 
 (defun poll-loop ()
   (labels ((copy-socket-list ()
              (loop
-                for socket = (dhs-sequences:queue-pop *master-poll-waiting-sockets* :if-empty nil)
+                for socket = (receptacle:queue-pop *master-poll-waiting-sockets* :if-empty nil)
                 while socket
                 do (push socket *active-sockets*))))
     (loop
        do (block wait-for-disconnect
             (handler-bind ((socket-updated-condition #'(lambda (condition)
                                                          (declare (ignore condition))
-                                                         (dhs-sequences:with-atomic-variable (v *poll-loop-wait-flag*)
+                                                         (receptacle:with-atomic-variable (v *poll-loop-wait-flag*)
                                                            (when v
                                                              (return-from wait-for-disconnect))))))
               
               (let ((s (unwind-protect
                             (progn
-                              (dhs-sequences:with-atomic-variable (v *poll-loop-wait-flag*)
+                              (receptacle:with-atomic-variable (v *poll-loop-wait-flag*)
                                 (setq v t)
                                 (copy-socket-list))
                               (if *active-sockets*
@@ -170,7 +170,7 @@ function to be called on the socket.")
                                     (sleep 10)
                                     nil)))
                          ;; Unwind form
-                         (setf (dhs-sequences:atomic/value *poll-loop-wait-flag*) nil))))
+                         (setf (receptacle:atomic/value *poll-loop-wait-flag*) nil))))
                 ;; s now contains a list of sockets that should be closed and dropped from
                 ;; the list of active sockets.
                 (dolist (socket s)
@@ -192,9 +192,9 @@ function to be called on the socket.")
 
 (defun push-queue-loop ()
   (loop
-     for socket = (dhs-sequences:queue-pop-wait *push-queue*)
+     for socket = (receptacle:queue-pop-wait *push-queue*)
      do (let ((should-send nil))
-          (dhs-sequences:with-atomic-variable (v (opened-socket/in-progress-p socket))
+          (receptacle:with-atomic-variable (v (opened-socket/in-progress-p socket))
             (unless v
               (setq should-send t)
               (setq v t)))
@@ -202,8 +202,8 @@ function to be called on the socket.")
             (unwind-protect
                  (loop
                     for first = t then nil
-                    for callback = (dhs-sequences:with-atomic-variable (v (opened-socket/in-progress-p socket))
-                                     (let ((value (dhs-sequences:queue-pop (opened-socket/queue socket) :if-empty nil)))
+                    for callback = (receptacle:with-atomic-variable (v (opened-socket/in-progress-p socket))
+                                     (let ((value (receptacle:queue-pop (opened-socket/queue socket) :if-empty nil)))
                                        (or value
                                            (progn
                                              (unless first
@@ -218,7 +218,7 @@ function to be called on the socket.")
                          (error (condition)
                            (log:error "Error pushing message: ~s~%" condition)
                            (setf (opened-socket/discarded-p socket) t))))
-              (dhs-sequences:with-atomic-variable (v (opened-socket/in-progress-p socket))
+              (receptacle:with-atomic-variable (v (opened-socket/in-progress-p socket))
                 (setf v nil)))))))
 
 (defun push-queue-loop-start ()
@@ -232,8 +232,8 @@ function to be called on the socket.")
 (defun enqueue-on-push-queue (socket callback)
   (check-type socket opened-socket)
   (check-type callback function)
-  (dhs-sequences:queue-push (opened-socket/queue socket) callback)
-  (dhs-sequences:queue-push *push-queue* socket))
+  (receptacle:queue-push (opened-socket/queue socket) callback)
+  (receptacle:queue-push *push-queue* socket))
 
 (defun timer-block-loop ()
   (loop
