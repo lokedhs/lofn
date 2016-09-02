@@ -10,7 +10,7 @@
                :yacc
                :string-case
                :secure-random
-               :containers
+               :receptacle
                :closer-mop
                :html5-notification
                :trivial-timers
