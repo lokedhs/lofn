@@ -243,9 +243,9 @@ or NIL if the information is not available."))
              (let* ((arguments (car row))
                     (param-list (mapcar #'(lambda (arg) (if (listp arg) (cadr arg) arg)) arguments)))
                (append (mapcar #'(lambda (arg) (if (listp arg) (car arg) arg)) arguments)
-                       (when (cadr row) (list `#'(lambda ,param-list
-                                                   (declare (ignorable ,@param-list))
-                                                   ,@(cdr row)))))))
+                       (when (cadr row) (list `(lambda ,param-list
+                                                 (declare (ignorable ,@param-list))
+                                                 ,@(cdr row)))))))
 
            (process-definition (definition)
              (append (list (car definition))
