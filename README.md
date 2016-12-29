@@ -2,7 +2,7 @@
 
 ## About the template engine
 
-The engine works by compiling a source file into a Lisp form an
+The engine works by compiling a source file into a Lisp form and
 compiling it. This is done using the function `PARSE-TEMPLATE`. This
 function takes a template and returns a compiled function that can be
 called to invoke the template.
