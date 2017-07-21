@@ -345,16 +345,17 @@ or NIL if the information is not available."))
       (with-open-file (file-in filename :if-does-not-exist nil)
         (unless file-in
           (signal-template-error (format nil "Failed to open index file \"~a\", file does not exist." filename)))
-        (let ((data (st-json:read-json file-in)))
-          (st-json:mapjso (lambda (key value)
-                            (unless (stringp key)
-                              (signal-template-error (format nil "In index file \"~a\", key ~s is not a string."
-                                                             filename key)))
-                            (unless (stringp value)
-                              (signal-template-error (format nil "In index file \"~a\", value for key \"~a\" is not a string."
-                                                             filename key)))
-                            (setf (gethash (format nil "~a.~a" string key) *index-values*) value))
-                          data)))))
+        (let ((*read-eval* nil))
+          (let ((data (read file-in)))
+            (loop
+              for (key . value) in data
+              unless (stringp key)
+                do (signal-template-error (format nil "In index file \"~a\", key ~s is not a string."
+                                                  filename key))
+              unless (stringp value)
+                do (signal-template-error (format nil "In index file \"~a\", value for key \"~a\" is not a string."
+                                                  filename key))
+              do (setf (gethash (format nil "~a.~a" string key) *index-values*) value)))))))
 
    ) ; end of DOCUMENT-NODE
 
