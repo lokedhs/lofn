@@ -88,6 +88,7 @@ form \(NAME REGEX)")
 (defun %make-define-handler-fn-form (docstring name bind-vars body)
   `(defun ,name ,bind-vars
      ,@(when docstring (list docstring))
+     (log:trace "HTTP request to: ~a, ~s, ~a" ',name (hunchentoot:request-method*) (hunchentoot:request-uri*))
      ,@body))
 
 (defmacro define-handler-fn-internal ((name url regex bind-vars) &body body)
